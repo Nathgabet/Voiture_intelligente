@@ -1,3 +1,13 @@
+/*
+
+*****************************************************************************
+
+Programme permettant de récupérer les valeurs du gyroscope grâce au bus de communication i2c en utilisant la librairie wiringPi
+
+*****************************************************************************
+
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
