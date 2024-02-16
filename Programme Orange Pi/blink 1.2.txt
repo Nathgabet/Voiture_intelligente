@@ -1,13 +1,13 @@
 
 /*
-Programme pour stoper un proggramme grâce à un bouton
-de manière à sortir correctement du code par un fonctionnement
-en thread
 
 *****************************************************************************
-Pour compiler :
 
-        gcc -Wall blthreadLX.c -o blthreadLX
+Ce programme est une ébauche permettant de réduire la longueur du code en 
+utilisant des fonctions (similairement au fonction pinMode et digitawrite de 
+Arduino)
+
+*****************************************************************************
 
 */
 

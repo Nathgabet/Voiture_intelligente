@@ -1,12 +1,23 @@
-#include <stdio.h> //de base
-#include <stdlib.h> //pour printf
+/*
+
+*****************************************************************************
+
+Ce programme permet d'utiliser deux ports gpio, l'un en sortie pour allumer 
+une led, l'autre en entrée pour remonter la pression d'un bouton le tout 
+avec les librairies linux
+
+*****************************************************************************
+
+*/
+
+#include <stdio.h> 
+#include <stdlib.h> 
 #include <string.h> //pour les chaine de caractere
 #include <stdint.h>
 #include <unistd.h>
-#include <fcntl.h>// pour open
-#include <sys/ioctl.h>// pour ioctl
-#include <linux/gpio.h>// pour struct gpiochip
-
+#include <fcntl.h> // pour open
+#include <sys/ioctl.h> // pour ioctl
+#include <linux/gpio.h> // pour struct gpiochip
 
 int main (void){
 
@@ -68,3 +79,4 @@ int main (void){
         sleep(2);
 
         close(fd);
+}
