@@ -20,7 +20,7 @@ Programme Orange Pi
 
 - Des schémas de raccordement des pins
 - Le reste des dessins d'ensembles du projet
-- Actuellement 
+- L'ajout d'une télécommande pour gérer les programmes
 
 ## Plus d'informations
 
