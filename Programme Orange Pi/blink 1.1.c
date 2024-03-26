@@ -1,23 +1,20 @@
 /*
 
-*****************************************************************************
+Pour compiler :
 
-Ce programme permet d'utiliser deux ports gpio, l'un en sortie pour allumer 
-une led, l'autre en entrée pour remonter la pression d'un bouton le tout 
-avec les librairies linux
-
-*****************************************************************************
+        gcc -Wall blinkLX.c -o blinkLX
 
 */
 
-#include <stdio.h> 
-#include <stdlib.h> 
+#include <stdio.h> //de base
+#include <stdlib.h> //pour printf
 #include <string.h> //pour les chaine de caractere
 #include <stdint.h>
 #include <unistd.h>
-#include <fcntl.h> // pour open
-#include <sys/ioctl.h> // pour ioctl
-#include <linux/gpio.h> // pour struct gpiochip
+#include <fcntl.h>// pour open
+#include <sys/ioctl.h>// pour ioctl
+#include <linux/gpio.h>// pour struct gpiochip
+
 
 int main (void){
 
@@ -27,7 +24,7 @@ int main (void){
 
         /* Open the handle device file */
         fd = open("/dev/gpiochip1", O_RDWR);
-  if(fd <0){
+        if(fd <0){
                 perror("Error opening gpiochip0");
                 return -1;
         }
@@ -37,7 +34,7 @@ int main (void){
         strcpy(led.consumer_label, "LED");
         memset(&led, 0, sizeof(led.default_values));
         led.lines = 1;
-        led.lineoffsets[0] = 226;
+        led.lineoffsets[0] = 268;
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &led) < 0) {
 
@@ -45,7 +42,8 @@ int main (void){
                 close(fd);
                 return -1;
         }
-      memset(&data, 0, sizeof(struct gpiohandle_data));
+
+        memset(&data, 0, sizeof(struct gpiohandle_data));
         ioctl(led.fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data);
         printf("Line %d is %s\n", 226, data.values[0] == 0 ? "LOW" : "HIGH");
 
@@ -63,10 +61,11 @@ int main (void){
                 close(fd);
                 return -1;
         }
-   /* Let set the LED */
+
+        /* Let set the LED */
         data.values[0] = 1;
         if(ioctl(led.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to setting GPIO 23 to 1");
+                perror("Error to setting GPIO 22 to 1");
         }
 
         /* Reading button's state */
@@ -74,9 +73,18 @@ int main (void){
                 perror("Error to reading GPIO value");
         }
 
-        printf("Boutton is %s \n", (data.values[0] > 0) ? "pressed" : "not pres>
+        printf("Boutton is %s \n", (data.values[0] > 0) ? "pressed" : "not pressed");
+
+        sleep(2);//sleep in sec
+
+        data.values[0] = 0;
+        if(ioctl(led.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
+                perror("Error to setting GPIO 22 to 0");
+        }
 
         sleep(2);
 
         close(fd);
+
+        return 0;
 }

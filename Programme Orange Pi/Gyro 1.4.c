@@ -1,16 +1,3 @@
-/*
-
-*****************************************************************************
-
-Programme permettant de récupérer les valeurs du gyroscope grâce au bus de communication i2c grâce au librairie de linux,
-pour arreter correctement le programme en refermant de ports de communications
-un bouton physique permet d'arrêter la boucle de fonctionnement correctemment
-cette arrêt est permis grâce au fonctionnement en thread
-
-*****************************************************************************
-
-*/
-
 #include <stdio.h> // pour EXIT_SUCCESS
 #include <stdlib.h> // pour printf
 #include <stdint.h>

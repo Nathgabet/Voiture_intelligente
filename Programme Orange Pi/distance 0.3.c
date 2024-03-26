@@ -1,7 +1,21 @@
 /*****************************************************************************
 
-Programme permettant de mesurer la distance avec le capteur un filtre permetant
-de conserver que les valeurs qui nous intéresse
+Programme permettant de meusurer la distance avec le capteur
+
+*****************************************************************************
+
+Raccordement du capteur :
+
+Vcc  -> +5V
+Trig -> Pin 23
+Echo -> Pin 25
+Gnd  -> Gnd
+
+*****************************************************************************
+
+Compilation du programme :
+
+gcc -Wall distance.c -lwiringPi -o distance
 
 ******************************************************************************/
 

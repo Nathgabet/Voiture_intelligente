@@ -1,14 +1,24 @@
-/*
+/*****************************************************************************
+
+Programme permettant d'utiliser le gyroscope MPU6050
 
 *****************************************************************************
 
-Ce programme intégre la communication des mesures du capteur avec le bus I2C 
-et integre aussi un arret correct avec un bouton en thread, le tout sans la 
-librairie wiringPi
+Raccordement du capteur :
+
+Vcc -> +5V
+Gnd -> Gnd
+SCL -> Pin 1/263
+SDA -> Pin 0/264
 
 *****************************************************************************
 
-*/
+Compilation du programme :
+
+gcc -Wall gyroLX.c lxlib.c -lpthread -o gyroLX
+
+*****************************************************************************/
+
 
 #include <stdio.h> // pour EXIT_SUCCESS
 #include <stdlib.h> // pour printf

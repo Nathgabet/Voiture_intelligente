@@ -1,13 +1,3 @@
-/*
-
-*****************************************************************************
-
-Désactivation de la led en fin de programme
-
-*****************************************************************************
-
-*/
-
 #include <stdio.h> //de base
 #include <stdlib.h> //pour printf
 #include <string.h> //pour les chaine de caractere
@@ -36,7 +26,7 @@ int main (void){
         strcpy(led.consumer_label, "LED");
         memset(&led, 0, sizeof(led.default_values));
         led.lines = 1;
-        led.lineoffsets[0] = 268;
+        led.lineoffsets[0] = 226;
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &led) < 0) {
 
@@ -44,8 +34,7 @@ int main (void){
                 close(fd);
                 return -1;
         }
-
-        memset(&data, 0, sizeof(struct gpiohandle_data));
+      memset(&data, 0, sizeof(struct gpiohandle_data));
         ioctl(led.fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data);
         printf("Line %d is %s\n", 226, data.values[0] == 0 ? "LOW" : "HIGH");
 
@@ -63,11 +52,10 @@ int main (void){
                 close(fd);
                 return -1;
         }
-
-        /* Let set the LED */
+   /* Let set the LED */
         data.values[0] = 1;
         if(ioctl(led.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to setting GPIO 22 to 1");
+                perror("Error to setting GPIO 23 to 1");
         }
 
         /* Reading button's state */
@@ -75,14 +63,7 @@ int main (void){
                 perror("Error to reading GPIO value");
         }
 
-        printf("Boutton is %s \n", (data.values[0] > 0) ? "pressed" : "not pressed");
-
-        sleep(2);//sleep in sec
-
-        data.values[0] = 0;
-        if(ioctl(led.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to setting GPIO 22 to 0");
-        }
+        printf("Boutton is %s \n", (data.values[0] > 0) ? "pressed" : "not pressed" );
 
         sleep(2);
 

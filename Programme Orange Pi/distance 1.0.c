@@ -1,9 +1,21 @@
 /*****************************************************************************
 
-Programme permettant de mesurer la distance avec le capteur un filtre permetant
-de conserver que les valeurs qui nous intéresse avec en plus l'intégration du 
-bouton pour arreter correctement le programme, le tout sans la librairie 
-wiringPi (problème lorsque le capteur ne recoit pas de signal, le programme reste bloquer sans renvoyer de valeur)
+Programme permettant de meusurer la distance avec le capteur
+
+*****************************************************************************
+
+Raccordement du capteur :
+
+Vcc  -> +5V
+Trig -> Pin 23/258
+Echo -> Pin 25/272
+Gnd  -> Gnd
+
+*****************************************************************************
+
+Compilation du programme :
+
+gcc -Wall distance.c lxlib.c -lpthread -o distance
 
 ******************************************************************************/
 
@@ -16,8 +28,8 @@ wiringPi (problème lorsque le capteur ne recoit pas de signal, le programme res
 #include <fcntl.h> // pour open
 #include <sys/ioctl.h> // pour ioctl
 #include <string.h>
-#include <pthread.h>
 #include "lxlib.h"
+#include <pthread.h>
 
 #define TRIG 258
 #define ECHO 272

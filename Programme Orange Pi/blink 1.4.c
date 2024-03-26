@@ -1,12 +1,12 @@
 /*
+Programme pour stoper un proggramme grâce à un bouton
+de manière à sortir correctement du code par un fonctionnement
+en thread
 
 *****************************************************************************
+Pour compiler :
 
-Ce programme permet d'utiliser des pin gpio grâce à une librairie ce qui 
-permet d'avoir un code de moins de 100 lignes pouvant être encore raccourci 
-si l'on ne verifie pas les erreurs potentiels 
-
-*****************************************************************************
+        gcc -Wall blthreadLX.c lxlib.c -o blthreadLX
 
 */
 
@@ -19,6 +19,7 @@ si l'on ne verifie pas les erreurs potentiels
 #include <sys/ioctl.h>// pour ioctl
 #include <linux/gpio.h>// pour struct gpiochip
 #include "lxlib.h"
+
 
 int main (void){
 

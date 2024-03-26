@@ -1,8 +1,21 @@
 /*****************************************************************************
 
-Programme permettant de mesurer la distance avec le capteur un filtre permetant
-de conserver que les valeurs qui nous intéresse avec en plus l'intégration du 
-bouton pour arreter correctement le programme
+Programme permettant de meusurer la distance avec le capteur
+
+*****************************************************************************
+
+Raccordement du capteur :
+
+Vcc  -> +5V
+Trig -> Pin 23
+Echo -> Pin 25
+Gnd  -> Gnd
+
+*****************************************************************************
+
+Compilation du programme :
+
+gcc -Wall distance.c -lwiringPi -o distance
 
 ******************************************************************************/
 
@@ -13,6 +26,7 @@ bouton pour arreter correctement le programme
 #include <unistd.h>
 #include <fcntl.h> // pour open
 #include <sys/ioctl.h> // pour ioctl
+#include <linux/i2c-dev.h>
 
 #define TRIG 23
 #define ECHO 25

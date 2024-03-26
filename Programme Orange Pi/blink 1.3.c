@@ -1,11 +1,12 @@
 /*
+Programme pour stoper un proggramme grâce à un bouton
+de manière à sortir correctement du code par un fonctionnement
+en thread
 
 *****************************************************************************
+Pour compiler :
 
-Programme permettant de lire et d'écrite sur des pin gpio grâce à des
-fonctions
-
-*****************************************************************************
+        gcc -Wall blthreadLX.c -o blthreadLX
 
 */
 

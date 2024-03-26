@@ -1,17 +1,11 @@
-/*
-
-*****************************************************************************
-
-Programme permettant le fonctionnement en thread d'un programme
-
-*****************************************************************************
-
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+
+//gcc -Wall threadLX.c -lpthread -o threadLX
+
+
 
 void *func1(void *arg){
 
@@ -25,6 +19,16 @@ void *func1(void *arg){
 
         pthread_exit(NULL);
 }
+
+/*
+
+int *func2(void *arg){
+
+        printf("cool \n");
+
+        return 1;
+}
+*/
 
 int main(void){
 
