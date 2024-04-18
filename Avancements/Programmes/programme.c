@@ -104,6 +104,7 @@ void *arret( void *arg){
         }
  
 	close(js);
+	pthread_cancel(NULL);
 }
 
 int main (int argc, char *argv[]) {
