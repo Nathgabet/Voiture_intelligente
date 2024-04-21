@@ -220,18 +220,18 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
 
         data = 0x41;
         if(write(*i2c_bus,&data, 1) != 1){
-                perror("Error write for accel reading\n");
+                perror("Error write for temp reading\n");
                 return -1;
         }
         msleep(1);
         if(read(*i2c_bus, buffer, 2) !=2){
-                perror("Error to read accel\n");
+                perror("Error to read temp\n");
                 return -1;
         }
         msleep(30);
         *temp = buffer[0] << 8 | buffer[1];
 
-        data = 0x47;
+        data = 0x43;
         if(write(*i2c_bus,&data, 1) != 1){
                 perror("Error write for accel reading\n");
                 return -1;

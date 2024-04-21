@@ -104,7 +104,7 @@ void *arret( void *arg){
         }
  
 	close(js);
-	pthread_cancel(NULL);
+	pthread_exit(NULL);
 }
 
 int main (int argc, char *argv[]) {
@@ -253,8 +253,8 @@ int main (int argc, char *argv[]) {
                     return -1;
                 }
 
-                printf(" accel X: %6.3f accel Z: %6.3f\n", ((float)accel[0])/16875.0,((float)accel[2])/17940.48);
-                printf(" gyro Z: %6.3f\n",((float)gyro)/65.5);
+                printf(" accel X: %6.3f accel Y: %6.3f\n", ((float)accel[0])/16875.0,((float)accel[1]) / -16875.0);
+                printf(" gyro X: %6.3f\n",((float)gyro)/65.5);
                 printf(" temp: %5.2f\n", (((float)temp) / 340.0) + 36.53);
 
                 msleep(100);

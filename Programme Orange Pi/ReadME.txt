@@ -15,7 +15,7 @@ Les programmes ont des des numéros associés, il s'agit des versions:
 
 Tous les programmes sont en langage c et ont était réalisés afin de fonctionner sur le orangepi Zero 2W
 
-Le branchement des pin correspond au pin gpio de la carte
+Le branchement des pin correspond au pin gpio de la carte, pour les programmes comportants une fonction d'arrêt, il faut relier la pin 260 du µprocesseur à la masse pour que le programme se lance et le déconnecter pour arreter le programme
 
 Des informations supplémentaires sont disponible dans certain programme
 
