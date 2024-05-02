@@ -231,7 +231,7 @@ int main (int argc, char * argv[]){
 
 		pwm1.duty_cycle = f_gyro*6.15+ 1466;
 		printf(" Duty cycle %d \n", pwm1.duty_cycle);
-                msleep(50);
+                msleep(0);
         }
         printf("Fermeture du programme ...\n");
         close(fd_i2c);

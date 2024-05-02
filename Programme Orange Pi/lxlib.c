@@ -1,14 +1,19 @@
 #include <stdio.h> //de base
 #include <stdlib.h> //pour printf
 #include <string.h> //pour les chaine de caractere
-#include <stdint.h>
+#include <stdint.h>//Permet d'utiliser les variables non signees
 #include <unistd.h>
 #include <fcntl.h>// pour open
 #include <sys/ioctl.h>// pour ioctl
 #include <linux/gpio.h>// pour struct gpiochip
-#include <linux/spi/spidev.h>
+#include <linux/spi/spidev.h>//permet d'utiliser le bus SPI
+#include <linux/joystick.h>//permet d'utiliser la manette
 #include "lxlib.h"
 
+/*
+Fonction associes au port GPIO
+*/
+//Declare un port GPIO comme entree
 int GpioIn(struct pin *bouton){
 
         struct gpiohandle_request flag;
@@ -19,8 +24,7 @@ int GpioIn(struct pin *bouton){
 
         flag.flags = GPIOHANDLE_REQUEST_INPUT;
         strcpy(flag.consumer_label, "BOUTON");
-        memset(flag.default_values, 0, sizeof(flag.default_values));
-        flag.lines = 1;
+        memset(flag.default_values, 0, sizeof(flag.default_values));        flag.lines = 1;
         flag.lineoffsets[0] = (*bouton).gpio;
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &flag) < 0) {
@@ -36,6 +40,7 @@ int GpioIn(struct pin *bouton){
         }
 }
 
+//Declare un port GPIO comme sortie
 int GpioOut(struct pin *led){
 
         struct gpiohandle_request flag;
@@ -64,6 +69,7 @@ int GpioOut(struct pin *led){
 
 }
 
+//permet de changer l'etat d'une sortie
 int GpioWrite(struct pin *led, int value){
 
         struct gpiohandle_data data;
@@ -77,7 +83,7 @@ int GpioWrite(struct pin *led, int value){
 
         return 1;
 }
-
+//Permet de lire l'etat d'une entree
 int GpioRead(struct pin *bouton){
 
         struct gpiohandle_data data;
@@ -91,8 +97,7 @@ int GpioRead(struct pin *bouton){
                 return data.values[0];
         }
 }
-
-
+//Initialise les ports GPIO
 int InitGpio(){
 
         int fd;
@@ -101,7 +106,7 @@ int InitGpio(){
         if(fd <0){
                 perror("Error opening gpiochip1");
                 return -1;
-         }
+        }
         else{
                 printf("gpiochip1 Open\n");
         }
@@ -109,10 +114,17 @@ int InitGpio(){
         return fd;
 }
 
+/*
+Fonction Permettant de faire des attentes en ms
+*/
 int msleep(unsigned int tms) {
   return usleep(tms * 1000);
 }
 
+/*
+Fonction associes à la communication I2C
+*/
+//Permet de reinitialiser le gyroscope
 int reset(int *i2c_bus){
 
         uint8_t buf[2] = {0x6B, 0x80};
@@ -125,7 +137,7 @@ int reset(int *i2c_bus){
         printf("Réinitialisation du MPU6050\n" );
         return 0;
 }
-
+//Permet de configurer le Gyroscope
 int config(int *i2c_bus){
 
         uint8_t buf[2];
@@ -186,7 +198,7 @@ int config(int *i2c_bus){
 
         return 0;
 }
-
+//Permet de lire les valeurs du gyroscope
 int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
 
         uint8_t data, buffer[6];
@@ -201,7 +213,7 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
                 perror("Error to read accel\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         for (int i = 0; i < 3; i++) {
                 accel[i] = (buffer[i * 2] << 8 | buffer[(i * 2) + 1]);
         }
@@ -216,7 +228,7 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
                 perror("Error to read accel\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         *temp = buffer[0] << 8 | buffer[1];
 
         data = 0x47;
@@ -229,12 +241,40 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
                 perror("Error to read accel\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         *gyro = (buffer[0] << 8 | buffer[1]);
 
         return 1;
 }
+//Permet de verifier le bon fonctionnement du gyroscope
+int verif(int *i2c_bus){
 
+        uint8_t buf;
+
+        buf =0x75;
+        if(write(*i2c_bus, &buf,1) !=1){
+                perror("Error writing on the bus");
+                return -1;
+        }
+
+        if(read(*i2c_bus,&buf,1)!=1){
+                perror("Error reading on the bus");
+                return -1;
+        }
+	msleep(1);
+        if(buf != 104){
+                perror("Erreur de lecture/ecriture de registre\n");
+                return -1;
+        }
+        printf("Lecture/ecriture validé\n");
+        return 1;
+
+}
+
+/*
+Fonctions associe au Bus SPI
+*/
+//Permet le tranfert de donnees
 int spi_transfer(int fd, uint8_t *data, int lenght){
 
         struct spi_ioc_transfer spi[lenght];
@@ -260,31 +300,7 @@ int spi_transfer(int fd, uint8_t *data, int lenght){
         return 1;
 
 }
-
-int verif(int *i2c_bus){
-
-        uint8_t buf;
-
-        buf =0x75;
-        if(write(*i2c_bus, &buf,1) !=1){
-                perror("Error writing on the bus");
-                return -1;
-        }
-
-        if(read(*i2c_bus,&buf,1)!=1){
-                perror("Error reading on the bus");
-                return -1;
-        }
-        msleep(1);
-        if(buf != 104){
-                perror("Erreur de lecture/ecriture de registre\n");
-                return -1;
-        }
-        printf("Lecture/ecriture validé\n");
-        return 1;
-
-}
-
+//Initialise le transmeteur NRF24
 int  nrf24Init(int fd){
 
          if(nrf24TransferRegister(fd,CONFIG,0x00)<0){
@@ -318,7 +334,7 @@ int  nrf24Init(int fd){
 
         return 1;
 }
-
+//Reinitialiser le transmeteur
 int nrf24Reset(int fd, uint8_t reg){
 
         if(reg == STATUS){
@@ -367,7 +383,7 @@ int nrf24Reset(int fd, uint8_t reg){
 
         return 1;
 }
-
+//Permet de simplifer l'écriture sur le bus SPI
 int nrf24TransferRegister(int fd, uint8_t reg, uint8_t data){
 
         uint8_t buf[2];
@@ -381,7 +397,7 @@ int nrf24TransferRegister(int fd, uint8_t reg, uint8_t data){
 
         return 1;
 }
-
+//Permet de modifier plusuieur registre en une fois
 int nrf24TransferMultiRegister(int fd, uint8_t reg, uint8_t *data, int size){
 
         uint8_t buf[2];
@@ -395,7 +411,7 @@ int nrf24TransferMultiRegister(int fd, uint8_t reg, uint8_t *data, int size){
 
         return 1;
 }
-
+//Parametre le Transmeteur en Emeteur
 int nrf24TxMode(int fd, uint8_t *adress, uint8_t channel){
 
         uint8_t data = 0;
@@ -410,7 +426,7 @@ int nrf24TxMode(int fd, uint8_t *adress, uint8_t channel){
 
         return 1;
 }
-
+//Parametre le transmetteur en Recepteur
 int nrf24RxMode(int fd, uint8_t *adress, uint8_t channel){
 
         uint8_t config = 0, en_rxaddr = 0;
@@ -429,7 +445,7 @@ int nrf24RxMode(int fd, uint8_t *adress, uint8_t channel){
 
         return 1;
 }
-
+//Permet de transmettre les donnees avec le NRF24
 uint8_t nrf24Transmit(int fd, uint8_t *data){
 
         uint8_t cmdtosend = 0, fifo_status = 0;
@@ -468,7 +484,7 @@ uint8_t nrf24Transmit(int fd, uint8_t *data){
                 return -1;
         }
 }
-
+//Permet de savoir si il y a des donnees à recuperer
 uint8_t IsDataAvailable(int fd, int pinenum){
 
         uint8_t status = 0;
@@ -483,7 +499,7 @@ uint8_t IsDataAvailable(int fd, int pinenum){
 
         return -1;
 }
-
+//Permet de recevoir les donnees
 int nrf24_Receive(int fd, uint8_t *data){
 
         uint8_t cmdtosend;
@@ -508,4 +524,58 @@ int nrf24_Receive(int fd, uint8_t *data){
 
 
         return 1;
+}
+
+/*
+
+Fonctions associes a la manette
+
+*/
+//Fonction permettant de lire les evenements
+int read_event(int fd, struct js_event *event){
+
+        ssize_t bytes;
+
+        bytes = read(fd, event, sizeof(*event));
+
+        if (bytes == sizeof(*event))
+                return 0;
+
+
+        return -1;
+}
+//Permet de connetre le nombre axes
+size_t get_axis_count(int fd){
+
+        uint8_t axes;
+
+        if (ioctl(fd, JSIOCGAXES, &axes) == -1)
+                return 0;
+
+        return axes;
+}
+//Permet de connetre le nombre de boutons
+size_t get_button_count(int fd){
+
+        uint8_t  buttons;
+
+        if (ioctl(fd, JSIOCGBUTTONS, &buttons) < 0)
+                return 0;
+
+        return buttons;
+}
+//Permet de connetre le position des joysticks
+size_t get_axis_state(struct js_event *event, struct axis_state axes[3]){
+
+        size_t axis = event->number / 2;
+
+        if (axis < 3){
+
+                if (event->number % 2 == 0)
+                        axes[axis].x = event->value;
+                else
+                        axes[axis].y = event->value;
+        }
+
+    return axis;
 }
