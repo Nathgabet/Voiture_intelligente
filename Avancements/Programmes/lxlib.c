@@ -8,12 +8,13 @@
 #include <linux/gpio.h>// pour struct gpiochip
 #include <linux/spi/spidev.h>//permet d'utiliser le bus SPI
 #include <linux/joystick.h>//permet d'utiliser la manette
+#include <pthread.h>
 #include "lxlib.h"
 
-/*
-Fonction associes au port GPIO
+/**
+ * Fonction associes au port GPIO
+ * Declare un port GPIO comme entree
 */
-//Declare un port GPIO comme entree
 int GpioIn(struct pin *bouton){
 
         struct gpiohandle_request flag;
@@ -29,18 +30,20 @@ int GpioIn(struct pin *bouton){
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &flag) < 0) {
 
-                perror("Error setting GPIO to input");
+                perror("Erreur: Definir le port GPIO en INPUT");
                 close(fd);
                 return -1;
         }
         else{
-                printf("Pin %d INPUT\n", (*bouton).gpio);
+                printf("Pin %d déclarée en INPUT\n", (*bouton).gpio);
                 (*bouton).handle = flag;
                 return 1;
         }
 }
 
-//Declare un port GPIO comme sortie
+/**
+ * Declare un port GPIO comme sortie
+*/
 int GpioOut(struct pin *led){
 
         struct gpiohandle_request flag;
@@ -57,19 +60,21 @@ int GpioOut(struct pin *led){
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &flag) < 0) {
 
-                perror("Error setting GPIO to output");
+                perror("Erreur: Definir le port GPIO en output");
                 close(fd);
                 return -1;
         }
         else{
-                printf("Pin %d OUTPUT\n", (*led).gpio);
+                printf("Pin %d déclarée en OUTPUT\n", (*led).gpio);
                 (*led).handle = flag;
                 return 1;
         }
 
 }
 
-//permet de changer l'etat d'une sortie
+/**
+ * permet de changer l'etat d'une sortie
+*/
 int GpioWrite(struct pin *led, int value){
 
         struct gpiohandle_data data;
@@ -77,54 +82,89 @@ int GpioWrite(struct pin *led, int value){
         data.values[0] = value;
 
         if(ioctl((*led).handle.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to setting GPIO");
+                perror("Erreur: Affectation sur GPIO");
                 return -1;
         }
 
         return 1;
 }
-//Permet de lire l'etat d'une entree
+/**
+ * Permet de lire l'etat d'une entree
+*/
 int GpioRead(struct pin *bouton){
 
         struct gpiohandle_data data;
 
         memset(&data, 0, sizeof(struct gpiohandle_data));
         if(ioctl((*bouton).handle.fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to reading GPIO value");
+                perror("Erreur: Lecture du port ");
                 return -1;
          }
         else{
                 return data.values[0];
         }
 }
-//Initialise les ports GPIO
+/**
+ * Initialise les ports GPIO
+*/
 int InitGpio(){
 
         int fd;
 
         fd = open("/dev/gpiochip1", O_RDWR);
         if(fd <0){
-                perror("Error opening gpiochip1");
+                perror("Erreur: Ouverture du port Gpio");
                 return -1;
-         }
+        }
         else{
-                printf("gpiochip1 Open\n");
+                printf("Port Gpio Ouvert\n");
         }
 
         return fd;
 }
-
-/*
-Fonction Permettant de faire des attentes en ms
+/**
+ * Fonction Permettant de faire des attentes en ms
 */
 int msleep(unsigned int tms) {
   return usleep(tms * 1000);
 }
-
-/*
-Fonction associes à la communication I2C
+/**
+ * long distance_raw - fonction permettant de calculer la distance
 */
-//Permet de reinitialiser le gyroscope
+long distance_raw(struct pin *echo){
+
+        struct timeval start, stop;
+
+        while(GpioRead(echo) == LOW){
+               gettimeofday(&start, NULL);
+        }
+        while(GpioRead(echo) == HIGH){
+            gettimeofday(&stop, NULL);
+
+        }
+
+       return ((stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)*0.017);
+
+}
+
+/**
+ * Fonction associes à la communication I2C
+*/
+int Initi2c(){
+
+        int fd;
+
+        if( (fd = open("/dev/i2c-1", O_RDWR)) < 0){
+                perror("Erreur : Ouverture du port i2c");
+                return -1;
+        }
+        printf("Port i2c ouvert\n");
+
+        return fd;
+}
+/**
+ * Permet de reinitialiser le gyroscope
+*/
 int reset(int *i2c_bus){
 
         uint8_t buf[2] = {0x6B, 0x80};
@@ -137,7 +177,9 @@ int reset(int *i2c_bus){
         printf("Réinitialisation du MPU6050\n" );
         return 0;
 }
-//Permet de configurer le Gyroscope
+/**
+ * Permet de configurer le Gyroscope
+*/
 int config(int *i2c_bus){
 
         uint8_t buf[2];
@@ -145,7 +187,7 @@ int config(int *i2c_bus){
         buf[0] = 0x6B;
         buf[1] = 0x00;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Reglage de l'alimentation");
+                perror("Erreur: Reglage de l'alimentation");
                 return -1;
         }
         msleep(200);
@@ -154,7 +196,7 @@ int config(int *i2c_bus){
         buf[0] = 0x1A;
         buf[1] = 0x05;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Reglage de la synchronisation");
+                perror("Erreur: Reglage de la synchronisation");
                  return -1;
         }
         msleep(200);
@@ -163,7 +205,7 @@ int config(int *i2c_bus){
         buf[0] = 0x1B;
         buf[1] = 0x08;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Reglage du Gyroscope");
+                perror("Erreur: Reglage du Gyroscope");
                 return -1;
         }
         msleep(200);
@@ -172,7 +214,7 @@ int config(int *i2c_bus){
         buf[0] = 0x1C;
         buf[1] = 0x00;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Reglage de l'accélérometre");
+                perror("Erreur: Reglage de l'accélérometre");
                 return -1;
         }
         msleep(200);
@@ -181,7 +223,7 @@ int config(int *i2c_bus){
         buf[0] = 0x19;
         buf[1] = 0x07;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Reglage du sample rate diviser");
+                perror("Erreur: Reglage du sample rate diviser");
                 return -1;
         }
         msleep(200);
@@ -190,91 +232,94 @@ int config(int *i2c_bus){
         buf[0] = 0x38;
         buf[1] = 0x01;
         if(write(*i2c_bus, buf, 2) != 2){
-                perror("Erreur : Activation des data");
+                perror("Erreur: Activation des datas");
                 return -1;
         }
         msleep(200);
-        printf("Activation des data\n" );
+        printf("Activation des datas\n" );
 
         return 0;
 }
-//Permet de lire les valeurs du gyroscope
+/**
+ * Permet de lire les valeurs du gyroscope
+*/
 int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
 
         uint8_t data, buffer[6];
 
         data = 0x3B;
         if(write(*i2c_bus,&data, 1) != 1){
-                perror("Error write for accel reading\n");
+                perror("Erreur: Ecriture d'addr pour la lecture de l'accel\n");
                 return -1;
         }
         msleep(1);
         if(read(*i2c_bus, buffer, 6) !=6){
-                perror("Error to read accel\n");
+                perror("Erreur: Lecture accel\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         for (int i = 0; i < 3; i++) {
                 accel[i] = (buffer[i * 2] << 8 | buffer[(i * 2) + 1]);
         }
 
         data = 0x41;
         if(write(*i2c_bus,&data, 1) != 1){
-                perror("Error write for temp reading\n");
+                perror("Erreur: Ecriture d'addr pour la lecture de l'accel\n");
                 return -1;
         }
         msleep(1);
         if(read(*i2c_bus, buffer, 2) !=2){
-                perror("Error to read temp\n");
+                perror("Erreur: Lecture temp\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         *temp = buffer[0] << 8 | buffer[1];
 
         data = 0x43;
         if(write(*i2c_bus,&data, 1) != 1){
-                perror("Error write for accel reading\n");
+                perror("Erreur:Ecriture d'addr pour la lecture de l'accel\n");
                 return -1;
         }
         msleep(1);
         if(read(*i2c_bus, buffer, 2) !=2){
-                perror("Error to read accel\n");
+                perror("Erreur: Lecture gyro\n");
                 return -1;
         }
-        msleep(30);
+        msleep(5);
         *gyro = (buffer[0] << 8 | buffer[1]);
 
         return 1;
 }
-//Permet de verifier le bon fonctionnement du gyroscope
+/**
+ * Permet de verifier le bon fonctionnement du gyroscope
+*/
 int verif(int *i2c_bus){
 
         uint8_t buf;
 
         buf =0x75;
         if(write(*i2c_bus, &buf,1) !=1){
-                perror("Error writing on the bus");
+                perror("Erreur: Ecrire sur le bus");
                 return -1;
         }
 
         if(read(*i2c_bus,&buf,1)!=1){
-                perror("Error reading on the bus");
+                perror("Erreur: Lire sur le bus");
                 return -1;
         }
 	msleep(1);
         if(buf != 104){
-                perror("Erreur de lecture/ecriture de registre\n");
+                perror("Erreur: de lecture/ecriture de registre\n");
                 return -1;
         }
         printf("Lecture/ecriture validé\n");
         return 1;
 
 }
-
-/*
-Fonctions associe au Bus SPI
+/**
+ * Fonctions associe au Bus SPI
+ * Permet le tranfert de donnees
 */
-//Permet le tranfert de donnees
 int spi_transfer(int fd, uint8_t *data, int lenght){
 
         struct spi_ioc_transfer spi[lenght];
@@ -292,7 +337,7 @@ int spi_transfer(int fd, uint8_t *data, int lenght){
         }
 
         if(ioctl(fd, SPI_IOC_MESSAGE(lenght), spi) < 0){
-                perror("Error : transfert data to SPI bus");
+                perror("Erreur: Avoit des donnée au bus SPI");
                 close(fd);
                 return -1;
         }
@@ -300,52 +345,56 @@ int spi_transfer(int fd, uint8_t *data, int lenght){
         return 1;
 
 }
-//Initialise le transmeteur NRF24
+/**
+ * Initialise le transmeteur NRF24
+*/
 int  nrf24Init(int fd){
 
          if(nrf24TransferRegister(fd,CONFIG,0x00)<0){
-                        perror("Error: Init: CONFIG ");
+                        perror("Erreur: Init: CONFIG ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,EN_AA,0x00)<0){
-                        perror("Error: Init: EN_AA ");
+                        perror("Erreur: Init: EN_AA ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,EN_RXADDR,0x00)<0){
-                        perror("Error: Init: EN_RXADDR ");
+                        perror("Erreur: Init: EN_RXADDR ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,SETUP_AW,0x03)<0){
-                        perror("Error: Init: SETUP_AW ");
+                        perror("Erreur: Init: SETUP_AW ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,SETUP_RETR,0x00)<0){
-                        perror("Error: Init: SETUP_RETR ");
+                        perror("Erreur: Init: SETUP_RETR ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,RF_CH,0x00)<0){
-                        perror("Error: Init: RF_CH ");
+                        perror("Erreur: Init: RF_CH ");
                         return -1;
                 }
          if(nrf24TransferRegister(fd,RF_SETUP,0x0E)<0){
-                        perror("Error: Init: RF_SETUP ");
+                        perror("Erreur: Init: RF_SETUP ");
                         return -1;
                 }
 
         return 1;
 }
-//Reinitialiser le transmeteur
+/**
+ * Reinitialiser le transmeteur
+*/
 int nrf24Reset(int fd, uint8_t reg){
 
         if(reg == STATUS){
                 if(nrf24TransferRegister(fd,STATUS,0x00)<0){
-                        perror("Error: Reset: STATUS ");
+                        perror("Erreur: Reset: STATUS ");
                         return -1;
                 }
         }
         else if(reg == FIFO_STATUS){
                 if(nrf24TransferRegister(fd,FIFO_STATUS,0x00)<0){
-                        perror("Error: Reset: FIFO STATUS ");
+                        perror("Erreur: Reset: FIFO STATUS ");
                         return -1;
                 }
         }
@@ -383,7 +432,9 @@ int nrf24Reset(int fd, uint8_t reg){
 
         return 1;
 }
-//Permet de simplifer l'écriture sur le bus SPI
+/**
+ * Permet de simplifer l'écriture sur le bus SPI
+*/
 int nrf24TransferRegister(int fd, uint8_t reg, uint8_t data){
 
         uint8_t buf[2];
@@ -391,13 +442,15 @@ int nrf24TransferRegister(int fd, uint8_t reg, uint8_t data){
         buf[1] = data ;
 
         if(spi_transfer(fd, buf, 2)<0){
-                perror("Error: Transfer Register ");
+                perror("Erreur: Transfer Registres ");
                 return -1;
         }
 
         return 1;
 }
-//Permet de modifier plusuieur registre en une fois
+/**
+ * Permet de modifier plusuieur registre en une fois
+*/
 int nrf24TransferMultiRegister(int fd, uint8_t reg, uint8_t *data, int size){
 
         uint8_t buf[2];
@@ -405,13 +458,15 @@ int nrf24TransferMultiRegister(int fd, uint8_t reg, uint8_t *data, int size){
         spi_transfer(fd, buf, 1);
 
         if(spi_transfer(fd, data, size)<0){
-                perror("Error: Transfer MultiRegister ");
+                perror("Erreur: Transfer MultiRegistre ");
                 return -1;
         }
 
         return 1;
 }
-//Parametre le Transmeteur en Emeteur
+/**
+ * Parametre le Transmeteur en Emeteur
+*/
 int nrf24TxMode(int fd, uint8_t *adress, uint8_t channel){
 
         uint8_t data = 0;
@@ -426,7 +481,9 @@ int nrf24TxMode(int fd, uint8_t *adress, uint8_t channel){
 
         return 1;
 }
-//Parametre le transmetteur en Recepteur
+/**
+ * Parametre le transmetteur en Recepteur
+*/
 int nrf24RxMode(int fd, uint8_t *adress, uint8_t channel){
 
         uint8_t config = 0, en_rxaddr = 0;
@@ -445,7 +502,9 @@ int nrf24RxMode(int fd, uint8_t *adress, uint8_t channel){
 
         return 1;
 }
-//Permet de transmettre les donnees avec le NRF24
+/**
+ * Permet de transmettre les donnees avec le NRF24
+*/
 uint8_t nrf24Transmit(int fd, uint8_t *data){
 
         uint8_t cmdtosend = 0, fifo_status = 0;
@@ -453,12 +512,12 @@ uint8_t nrf24Transmit(int fd, uint8_t *data){
         cmdtosend = W_TX_PAYLOAD;
 
          if(spi_transfer(fd, &cmdtosend, 1)<0){
-                perror("Error: Transmit : W_TX_PAYLOAD ");
+                perror("Erreur: Transmit : W_TX_PAYLOAD ");
                 return -1;
         }
         msleep(10);
         if(spi_transfer(fd, data, 32)<0){
-                perror("Error: Transmit : Data lenth ");
+                perror("Erreur: Transmit : Longueur de data");
                 return -1;
         }
         msleep(10);
@@ -472,7 +531,7 @@ uint8_t nrf24Transmit(int fd, uint8_t *data){
                 nrf24TransferRegister(fd, FIFO_STATUS, 0x00);
 
                 if(spi_transfer(fd,&cmdtosend , 1)<0){
-                        perror("Error: Transmit : FLUSH_TX ");
+                        perror("Erreur: Transmit : FLUSH_TX ");
                         return -1;
                 }
 
@@ -480,11 +539,13 @@ uint8_t nrf24Transmit(int fd, uint8_t *data){
                 return 1;
         }
         else{
-                perror("Error: Transmit: fifo_status size");
+                perror("Erreur: Transmit: Taille fifo_status ");
                 return -1;
         }
 }
-//Permet de savoir si il y a des donnees à recuperer
+/**
+ * Permet de savoir si il y a des donnees à recuperer
+*/
 uint8_t IsDataAvailable(int fd, int pinenum){
 
         uint8_t status = 0;
@@ -499,7 +560,9 @@ uint8_t IsDataAvailable(int fd, int pinenum){
 
         return -1;
 }
-//Permet de recevoir les donnees
+/**
+ * Permet de recevoir les donnees
+*/
 int nrf24_Receive(int fd, uint8_t *data){
 
         uint8_t cmdtosend;
@@ -507,31 +570,27 @@ int nrf24_Receive(int fd, uint8_t *data){
         cmdtosend = W_TX_PAYLOAD;
 
         if(spi_transfer(fd, &cmdtosend, 1)<0){
-                perror("Error: Receive : W_TX_PAYLOAD ");
+                perror("Erreur: Receive : W_TX_PAYLOAD ");
                 return -1;
         }
         msleep(10);
         if(spi_transfer(fd, data, 32)<0){
-                perror("Error: Receive : Data lenth ");
+                perror("Erreur: Receive : Longueur Data ");
                 return -1;
         }
         msleep(10);
         cmdtosend = FLUSH_RX;
         if(spi_transfer(fd,&cmdtosend , 1)<0){
-                perror("Error: Receive : FLUSH_RX ");
+                perror("Erreur: Receive : FLUSH_RX ");
                 return -1;
         }
 
-
         return 1;
 }
-
-/*
-
-Fonctions associes a la manette
-
+/**
+ * Fonctions associes a la manette
+ * read_event - Fonction permettant de lire les evenements
 */
-//Fonction permettant de lire les evenements
 int read_event(int fd, struct js_event *event){
 
         ssize_t bytes;
@@ -544,7 +603,9 @@ int read_event(int fd, struct js_event *event){
 
         return -1;
 }
-//Permet de connetre le nombre axes
+/**
+ * get_axis_count - Permet de connetre le nombre axes
+*/
 size_t get_axis_count(int fd){
 
         uint8_t axes;
@@ -554,7 +615,9 @@ size_t get_axis_count(int fd){
 
         return axes;
 }
-//Permet de connetre le nombre de boutons
+/**
+ * get_button_count - Permet de connetre le nombre de boutons
+*/
 size_t get_button_count(int fd){
 
         uint8_t  buttons;
@@ -564,7 +627,9 @@ size_t get_button_count(int fd){
 
         return buttons;
 }
-//Permet de connetre le position des joysticks
+/**
+ * get_axis_state - Permet de connetre le position des joysticks
+*/
 size_t get_axis_state(struct js_event *event, struct axis_state axes[3]){
 
         size_t axis = event->number / 2;
@@ -579,4 +644,56 @@ size_t get_axis_state(struct js_event *event, struct axis_state axes[3]){
 
     return axis;
 }
+/*
+ * *SetPwm - Permet de lancer une Pin en fonctionnent PWM
+ * il va changer le rapport cyclique selon les valeurs de la période
+ * et du duty cycle
+*/
+void *SetPwm(void *arg){
 
+       	pwm (*pwmpin) = (pwm*)arg;
+        struct pin gpio;
+        int highsleep,lowsleep;
+
+        gpio = (* pwmpin).pin;
+
+        highsleep = (*pwmpin).duty_cycle;
+        lowsleep = (*pwmpin).period - (*pwmpin).duty_cycle;
+	if(GpioWrite(&gpio, 0)<0){
+        	perror("Erreur: Affectation GPIO dans le thread PWM");
+                pthread_exit(NULL);
+        }
+        printf("Affectation dans le thread PWM\n");
+
+        while(1){
+
+                highsleep = (*pwmpin).duty_cycle;
+                lowsleep = (*pwmpin).period - (*pwmpin).duty_cycle;
+                GpioWrite(&gpio,1);
+                usleep(highsleep);
+                GpioWrite(&gpio,0);
+                usleep(lowsleep);
+
+        }
+
+        pthread_exit(NULL);
+}
+
+/**
+ * InitPwm - Permet de définir une pin en fonctionnment PWM
+ * Renvoi 1 en cas de succées sinon -1
+ * Fréquence ~=50Hz
+*/
+int InitPwm(pwm *pwm1){
+
+	pthread_t t1 = (*pwm1).thread ;
+	(*pwm1).period = 19750; //period en µs ajousté
+
+	if(pthread_create(&t1, NULL, *SetPwm, pwm1)){
+        	perror("Erreur: Creation du thread");
+		return -1;
+    	}
+	printf("Thread créer \n");
+
+	return 1;
+}

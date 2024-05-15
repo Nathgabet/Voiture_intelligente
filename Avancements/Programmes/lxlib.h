@@ -1,12 +1,17 @@
 #ifndef LXLIB_H
 #define LXLIB_H
 
+/**
+ * struct pin - parametre associé à une pin
+ * @fd : file descriptor de l'ouverture de gpiochip1
+ * @handle : parametre permettant de configurer la pin
+ * @gpio : numero associé à la pin
+*/
 struct pin{
         int fd;
         struct gpiohandle_request handle;
         int gpio;
 };
-
 
 int GpioWrite(struct pin *led, int value);
 int GpioRead(struct pin *bouton);
@@ -15,6 +20,9 @@ int msleep(unsigned int tms);
 int GpioIn(struct pin *bouton);
 int GpioOut(struct pin *bouton);
 
+long distance_raw(struct pin *echo);
+
+int Initi2c();
 int reset(int *i2c_bus);
 int config(int *i2c_bus);
 int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
@@ -93,6 +101,11 @@ int nrf24_Receive(int fd, uint8_t *data);
 #ifndef CONTROLLER
 #define CONTROLLER
 
+/**
+ * struct axis_state - regroupe les deux axes de direction
+ * @x : valeur sur l'axe x
+ * @y : valeur sur l'axe y
+*/
 struct axis_state {
 
         short x, y;
@@ -106,3 +119,32 @@ size_t get_axis_state(struct js_event *event, struct axis_state axes[3]);
 
 #endif
 
+#ifndef PWM
+#define PWM
+
+// pin PWM naturel
+#define PWM1 267
+#define PWM2 268
+#define PWM3 269
+#define PWM4 270
+
+/**
+ * struct pwm - structure contenant les parametres permettant de définir
+ * une pin en fonctionnement pwm 
+ * @pin : parametres global de fonctionnement d'une pin
+ * @thread : adresse du thread associé au pwm
+ * @period : durée en micosecond de la periode
+ * @duty_cycle : durée de l'état haut du rapport de cycle
+*/
+typedef struct {
+
+	struct pin pin;
+	pthread_t thread;
+	int period;
+	int duty_cycle;
+
+}pwm;
+void *SetPwm(void *arg);
+int InitPwm(pwm *pwm1);
+
+#endif
