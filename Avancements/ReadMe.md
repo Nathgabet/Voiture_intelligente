@@ -1,6 +1,6 @@
 # État des lieux
 
-A la date du 7 avril 2024 voici les composants et les programmes utiliser sur la voiture
+Voici les composants et les programmes présent sur la voiture
 Version 1 de la voiture Intelligente 
 
 # Composants
