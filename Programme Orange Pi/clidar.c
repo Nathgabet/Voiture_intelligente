@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
-//#include <termios.h>
-//#include <unistd.h>
+#include <termios.h>
+#include <unistd.h>
 #include <time.h>
 #include <stdbool.h> 
 
@@ -80,53 +80,52 @@ float  _process_scan(int *raw[]){
 	return *data;
 }
 
-void LidarConnect(char pathlidar[13], struct lidar *self){ 
+// void LidarConnect(char pathlidar[13], struct lidar *self){ 
 
-	(*self).fd = 3;
-	printf("\n LidarConnect pathlidar : %s", pathlidar);
-	printf("\n LidarConnect fd : %d", (*self).fd);
+// 	(*self).fd = 3;
+// 	printf("\n LidarConnect pathlidar : %s", pathlidar);
+// 	printf("\n LidarConnect fd : %d", (*self).fd);
 	
-}
-
-// void LidarConnect (char pathlidar[], struct lidar *self) {
-// 	/*Function to set the uart communication
-	
-// 	Returns: 
-// 		fd (int) : forward directory
-	
-// 	*/
-    
-//     (*self).fd = open(pathlidar, O_RDWR );
-// 	if((*self).fd < 0){
-// 		perror("Error Open UART bus");
-// 		return -1;
-// 	}
-// 	printf("Uart open\n");
-
-//     //PARITY_NONE, STOPBITS_ONE
-
-//     struct termios options;
-
-//     if(tcgetattr((*self).fd, &options) < 0){
-//   		printf("Err tcgetattr\n");
-//   		close((*self).fd);
-//  	}
-
-// 	options.c_cflag = B460800 | CS8 | CREAD | HUPCL; //baudrade, data size
-// 	options.c_iflag = 0;
-// 	options.c_oflag = 0;
-// 	options.c_lflag = 0;
-
-// 	//apply the settings
-// 	tcflush((*self).fd, TCIFLUSH);
-// 	if(tcsetattr((*self).fd, TCSANOW, &options) < 0 ){
-// 		perror("Setting serial parameters'Failed to connect to the sensor \n");
-// 		close((*self).fd);
-// 		return -1;
-// 	}
-// 	printf("serial set\n");
-
 // }
+
+int LidarConnect (char pathlidar[], struct lidar *self) {
+	/*Function to set the uart communication
+	
+	*/
+    
+	struct termios options;
+
+    (*self).fd = open(pathlidar, O_RDWR );
+	if((*self).fd < 0){
+		perror("Error Open UART bus");
+		return -1;
+	}
+	printf("Uart open\n");
+
+    //PARITY_NONE, STOPBITS_ONE
+
+    if(tcgetattr((*self).fd, &options) < 0){
+  		printf("Err tcgetattr\n");
+  		close((*self).fd);
+ 	}
+
+	options.c_cflag = B460800 | CS8 | CREAD | CLOCAL; //baudrade, data size
+	options.c_iflag = 0;
+	options.c_oflag = 0;
+	options.c_lflag = 0;
+
+	//apply the settings
+	tcflush((*self).fd, TCIFLUSH);
+	if(tcsetattr((*self).fd, TCSANOW, &options) < 0 ){
+		perror("Setting serial parameters'Failed to connect to the sensor \n");
+		close((*self).fd);
+		return -1;
+	}
+	printf("serial set\n");
+
+	return 0;
+
+}
 
 void _send_raw(int fd, uint8_t *data, int len ){
 	/*Function to send data to the lidar
@@ -135,9 +134,9 @@ void _send_raw(int fd, uint8_t *data, int len ){
 		data (int): data to send to the lidar
 		len (int): len of the data
 	*/
-
-	write(fd, data, len);
-
+	
+	len = write(fd, data, len);
+	printf("Send Request lidar info %x len:%ld", data[1], sizeof(len));
 }
 
 void _read_raw(struct lidar self, int *value, int lendata){
@@ -150,15 +149,14 @@ void _read_raw(struct lidar self, int *value, int lendata){
 	*/
 
 	uint8_t len = 0;
-	uint8_t tavle[7];
-	do{ //need to had a watchdog on this measurement
-		len++;
-		printf("\n_read raw Data");
-		//len = read(self.fd, *value, lendata );
-		
-		//usleep(5);
-	}while(len < lendata);
 	
+	do{ //need to had a watchdog on this measurement
+		
+		len = read(self.fd, *value, lendata );
+	
+	}while(len < 4);
+
+	printf("\n_read raw Data\n");
 }
 
 int _send_payload_cmd(int fd, int cmd, uint8_t *payload){
@@ -184,6 +182,7 @@ int _send_cmd(int fd, int cmd){
 
 	uint8_t req[2] = {SYNC_BYTE, cmd};
 
+	printf("\nlen of the sent request : %ld and data : %x %x", sizeof(req), req[0], req[1] );
 	_send_raw(fd, req, 2);
 
     return 0;
@@ -301,14 +300,19 @@ uint8_t gethealth(struct lidar self){
 }
 
 void getinfo(struct lidar *self){
-	printf("\nGet Infos");
+	printf("\nGet Infos ");
 	int dsize, raw[5];
 	char temp[255];
 	
 	_send_cmd((*self).fd, GET_INFO_BYTE);
-	dsize = _read_descriptor(self);
 	_read_raw(*self, raw, 8);
 	
+	for(int i =0; i < sizeof(raw); i++){
+
+		printf(" raw %d : %x %d \n", i, raw[i], raw[i] );
+
+	}
+
 	sprintf(temp, "%d",raw[0]);
 	strcpy((*self).info.model, temp);
 	sprintf(temp, "%d",raw[2]+raw[1]);
@@ -371,8 +375,7 @@ int main (void){
 	int error_code = 0;
 
 	LidarConnect("/dev/ttyAMA0", &new_lidar);
-	printf("\n main fd : %d", new_lidar.fd);
-
+	
 	getinfo(&new_lidar);//need to check the read raw 
 
 	printf("\n model : %s", new_lidar.info.model);
