@@ -1,0 +1,47 @@
+Uart open
+serial set
+
+Get Infos 
+len of the sent request : 2 and data : a5 50
+Send Request lidar info 50 len:4
+ raw 0 : a5 165 
+ raw 1 : 5a 90 
+ raw 2 : 14 20 
+ raw 3 : 0 0 
+ raw 4 : 0 0 
+ raw 5 : 0 0 
+ raw 6 : 4 4 
+ raw 7 : 41 65 
+ raw 8 : 2 2 
+ raw 9 : 1 1 
+ raw 10 : 12 18 
+ raw 11 : ea 234 
+ raw 12 : 68 104 
+ raw 13 : e1 225 
+ raw 14 : f4 244 
+ raw 15 : c2 194 
+ raw 16 : e3 227 
+ raw 17 : 0 0 
+ raw 18 : 0 0 
+ raw 19 : 0 0 
+
+ model : 165
+ firmware : 110
+ hardware : 0
+ serial_number : 0
+Star motor
+ 0 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 1 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 2 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 3 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 4 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 5 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 6 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 7 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 8 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+ 9 : angle: 0.000000, distance : -97896649438247705911492608.000000, quality : 0.000000
+Stop function
+len of the sent request : 2 and data : a5 25
+Send Request lidar info 25 len:4
+
+Stop motor
