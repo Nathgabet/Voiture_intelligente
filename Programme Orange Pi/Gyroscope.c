@@ -1,105 +1,251 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h> // pour EXIT_SUCCESS
+#include <stdlib.h> // pour printf
 #include <stdint.h>
 #include <unistd.h>
-#include <time.h>
+#include <fcntl.h> // pour open
+#include <sys/ioctl.h> // pour ioctl
+#include <linux/i2c-dev.h>
 #include <wiringPi.h>
-#include <wiringPiI2C.h>
+#define LED 26
 
-#define addr 0x68
+static int reset(int *i2c_bus);
+static int config(int *i2c_bus);
+static int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
+static int verif(int *i2c_bus);
+int boucle = 1;
 
-static void read_raw(uint16_t accel[3],uint16_t gyro[3] ,uint16_t *temp );
-static int reset();
-static int config();
+PI_THREAD (flag){
 
-int main (int argc, char **argv){
+        int value =0;
 
-        int fd = wiringPiI2CSetup(addr);
-        uint16_t accel[3], gyro[3], temp;
+        for (;;){
+                value = digitalRead (LED) ;  // On
+                delay (10) ;               // mS
+                if (value == 1){
+                        boucle = 0;
+                        return 0;
+                }
+                else{
+                        boucle = 1;
+                }
+        }
+}
 
-        if (fd == -1) {
-                printf("Failed to init I2C communication.\n");
+int main (int argc, char * argv[]){
+
+        int i2c_bus;
+        int16_t accel[3]= {10}, gyro, temp;
+
+        wiringPiSetup();
+
+        pinMode (LED, INPUT) ;
+
+        /*Let open the bus*/
+        i2c_bus = open("/dev/i2c-1", O_RDWR);
+
+        if(i2c_bus < 0){
+                perror("Error openning the i2c Bus");
                 return -1;
         }
-        printf("I2C communication successfully setup.\n");
+        printf("Bus Open \n");
 
-/*      if(reset() !=1){
-                perror("Erreur lors deu reset du gyro");
-                return -1;
-        }*/
-        if(config() <0){
-                perror("Erreur lors de la configuration du gyro");
+        piThreadCreate (flag) ;
+
+        if(ioctl(i2c_bus, I2C_SLAVE, 0x68) < 0){
+                perror("Error to setting slave adress");
+                close(i2c_bus);
                 return -1;
         }
 
-        read_raw(accel, gyro, &temp);
+        /* Now access to the bus */
+        //Vérification d'acces
+        if(verif(&i2c_bus)<0){
+                close(i2c_bus);
+                return -1;
+        }
+
+        // Reset MPU6050
+        if(reset(&i2c_bus)!=0){
+                perror("Error réinitialisation");
+                close(i2c_bus);
+                return -1;
+        }
+
+        // Configuration MPU6050
+        if(config(&i2c_bus)!=0){
+                perror("Error configuration");
+                close(i2c_bus);
+                return -1;
+        }
+
+        if(verif(&i2c_bus)<0){
+                close(i2c_bus);
+                return -1;
+        }
+
+        // Read data
+        while(boucle){
+                if(mpu_read_raw(&i2c_bus, accel, &gyro, &temp)<0){
+                        perror("Error reading data");
+                        close(i2c_bus);
+                        return -1;
+                }
+
+                printf(" accel X: %6.3f accel Z: %6.3f\n", ((float)accel[0])/16875.0,((float)accel[2])/17940.48);
+                printf(" gyro Z: %6.3f\n",((float)gyro)/65.5);
+                printf(" temp: %5.2f\n", (((float)temp) / 340.0) + 36.53);
+
+                delay(500);
+        }
+        printf("Fermeture du programme ...\n");
+        close(i2c_bus);
+        printf("Programme fermé\n");
 
         return 0;
 }
 
-static void read_raw(uint16_t accel[3],uint16_t gyro[3] ,uint16_t *temp ){
+static int reset(int *i2c_bus){
 
-        uint8_t buffer[2];
+        uint8_t buf[2] = {0x6B, 0x80};
 
-        buffer[0] = wiringPiI2CReadReg8(addr, 0x3B);
-        buffer[1] = wiringPiI2CReadReg8(addr, 0x3C);
-        accel[0] = (buffer[0] << 8 | buffer[1]);
-        buffer[0] = wiringPiI2CReadReg8(addr, 0x3D);
-        buffer[1] = wiringPiI2CReadReg8(addr, 0x3E);
-        accel[1] = (buffer[0] << 8 | buffer[1]);
-        buffer[0] = wiringPiI2CReadReg8(addr, 0x3F);
-        buffer[1] = wiringPiI2CReadReg8(addr, 0x40);
-        accel[2] = (buffer[0] << 8 | buffer[1]);
-
-
-
-}
-
-static int reset(){
-
-        if(wiringPiI2CWriteReg8( addr, 0x6B, 0x80) !=1){
+        if(write(*i2c_bus, buf, 2) != 2){
                 perror("Erreur: Réinitialisation du MPU6050");
                 return -1;
         }
+        delay(200);
         printf("Réinitialisation du MPU6050\n" );
-
-        return 1;
-
+        return 0;
 }
 
-static int config(){
+static int config(int *i2c_bus){
 
-        if(wiringPiI2CWriteReg8( addr, 0x6B, 0x00)<0){
-                perror("Erreur :Reglage de l'alimentation");
-                return -1;
+        uint8_t buf[2];
+
+        buf[0] = 0x6B;
+        buf[1] = 0x00;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Reglage de l'alimentation");
+                 return -1;
         }
+        delay(200);
         printf("Reglage de l'alimentation\n" );
 
-
-        if(wiringPiI2CWriteReg8( addr, 0x1A, 0x05)<0){
-                perror("Erreur :Reglage de la synchronisation");
-                return -1;
+        buf[0] = 0x1A;
+        buf[1] = 0x05;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Reglage de la synchronisation");
+                 return -1;
         }
+        delay(200);
         printf("Reglage de la synchronisation\n" );
 
-        if(wiringPiI2CWriteReg8( addr, 0x1B, 0x08)<0){
-                perror("Erreur :Reglage du gyroscope");
+        buf[0] = 0x1B;
+        buf[1] = 0x08;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Reglage du Gyroscope");
                 return -1;
         }
-        printf("Reglage du gyroscope\n" );
+        delay(200);
+        printf("Reglage du Gyroscope\n" );
 
-        if(wiringPiI2CWriteReg8( addr, 0x1C, 0x00)<0){
-                perror("Erreur : Reglage de l'accelerometre");
+        buf[0] = 0x1C;
+        buf[1] = 0x00;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Reglage de l'accélérometre");
                 return -1;
         }
-        printf("Reglage de l'accelerometre\n" );
+        delay(200);
+        printf("Reglage de l'accélérometre\n" );
 
-        if(wiringPiI2CWriteReg8( addr, 0x19, 0x07)<0){
-                perror("Erreur :Reglage du sample rate diviser");
+        buf[0] = 0x19;
+        buf[1] = 0x07;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Reglage du sample rate diviser");
                 return -1;
         }
+        delay(200);
         printf("Reglage du sample rate diviser\n" );
 
+        buf[0] = 0x38;
+        buf[1] = 0x01;
+        if(write(*i2c_bus, buf, 2) != 2){
+                perror("Erreur : Activation des data");
+                return -1;
+        }
+        delay(200);
+        printf("Activation des data\n" );
+
+        return 0;
+}
+
+static int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
+
+        uint8_t data, buffer[6];
+
+        data = 0x3B;
+        if(write(*i2c_bus,&data, 1) != 1){
+                perror("Error write for accel reading\n");
+                return -1;
+        }
+        delay(1);
+        if(read(*i2c_bus, buffer, 6) !=6){
+                perror("Error to read accel\n");
+                return -1;
+        }
+        delay(30);
+        for (int i = 0; i < 3; i++) {
+                accel[i] = (buffer[i * 2] << 8 | buffer[(i * 2) + 1]);
+        }
+
+        data = 0x41;
+        if(write(*i2c_bus,&data, 1) != 1){
+                perror("Error write for accel reading\n");
+                return -1;
+        }
+        delay(1);
+        if(read(*i2c_bus, buffer, 2) !=2){
+                perror("Error to read accel\n");
+                return -1;
+        }
+        delay(30);
+        *temp = buffer[0] << 8 | buffer[1];
+
+        data = 0x47;
+        if(write(*i2c_bus,&data, 1) != 1){
+                perror("Error write for accel reading\n");
+                return -1;
+        }
+        delay(1);
+        if(read(*i2c_bus, buffer, 2) !=2){
+                perror("Error to read accel\n");
+                return -1;
+        }
+        delay(30);
+        *gyro = (buffer[0] << 8 | buffer[1]);
+
+        return 1;
+}
+
+static int verif(int *i2c_bus){
+
+        uint8_t buf;
+
+        buf =0x75;
+        if(write(*i2c_bus, &buf,1) !=1){
+                perror("Error writing on the bus");
+                return -1;
+        }
+
+        if(read(*i2c_bus,&buf,1)!=1){
+                perror("Error reading on the bus");
+                return -1;
+        }
+
+        if(buf != 104){
+                perror("Erreur de lecture/ecriture de registre\n");
+                return -1;
+        }
+        printf("Lecture/ecriture validé\n");
         return 1;
 
 }
