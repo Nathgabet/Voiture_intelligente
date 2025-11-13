@@ -23,6 +23,7 @@
 #define RESET_BYTE 0x40
 #define INFO_LEN 20
 #define HEALTH_LEN 3
+#define RESET 0x40
 
 struct lidardata{
 	float angle;
@@ -256,6 +257,12 @@ int iter_measurement (struct lidar self, float *angle, float *distance, float *q
 	return 0;
 }
 
+void reset(uint8_t fd){
+
+	_send_cmd(fd, RESET);
+
+}
+
 uint8_t gethealth(struct lidar self){
 	/*Get device health state
 
@@ -331,6 +338,8 @@ int main (void){
 	printf("hardware : %s\n", new_lidar.info.hardware);
 	printf("serial_number : %s\n", new_lidar.info.serial_number);
 
+	reset(new_lidar.fd);
+	
 	if(gethealth(new_lidar)!=0){
 		printf("Error code : %d \n", error_code);
 		LidarDeconnect(new_lidar.fd);
