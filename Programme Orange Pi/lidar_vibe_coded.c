@@ -128,18 +128,18 @@ int main() {
 #define CMD_SCAN           0x20
 #define CMD_GET_HEALTH     0x52
 
-int serial_port;
+int fd;
 
 // Initialize UART on Raspberry Pi 5
 bool init_uart(const char* port, int baud) {
-    serial_port = open(port, O_RDWR | O_NOCTTY | O_SYNC);
-    if (serial_port < 0) {
+    fd = open(port, O_RDWR | O_NOCTTY | O_SYNC);
+    if (fd < 0) {
         perror("Error opening serial port");
         return false;
     }
 
     struct termios tty;
-    if (tcgetattr(serial_port, &tty) != 0) return false;
+    if (tcgetattr(fd, &tty) != 0) return false;
 
     cfsetospeed(&tty, baud);
     cfsetispeed(&tty, baud);
@@ -156,19 +156,19 @@ bool init_uart(const char* port, int baud) {
     tty.c_cflag &= ~CSTOPB;
     tty.c_cflag &= ~CRTSCTS;
 
-    if (tcsetattr(serial_port, TCSANOW, &tty) != 0) return false;
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) return false;
     return true;
 }
 
 void send_request(uint8_t command) {
     uint8_t packet[2] = {START_FLAG, command}; [cite: 114, 130]
-    write(serial_port, packet, 2);
+    write(fd, packet, 2);
 }
 
 int read_block(uint8_t* buffer, int len) {
     int total_read = 0;
     while (total_read < len) {
-        int r = read(serial_port, buffer + total_read, len - total_read);
+        int r = read(fd, buffer + total_read, len - total_read);
         if (r <= 0) break;
         total_read += r;
     }
@@ -216,7 +216,7 @@ int main() {
 
     process_scan();
 
-    close(serial_port);
+    close(fd);
     return 0;
 }
 
@@ -247,7 +247,8 @@ bool init_serial(const char* port) {
     cfsetospeed(&tty, B115200);
     cfsetispeed(&tty, B115200);
     tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
-    tty.c_lflag = 0; tty.c_oflag = 0;
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
     tty.c_cc[VMIN] = 0; tty.c_cc[VTIME] = 10; // 1s timeout
     return tcsetattr(fd, TCSANOW, &tty) == 0;
 }
