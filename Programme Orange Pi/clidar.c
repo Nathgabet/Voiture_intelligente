@@ -3,13 +3,17 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
-//#include <termios.h>
+#include <termios.h>
 #include <unistd.h>
 #include <time.h>
 #include <stdbool.h> 
 
 // gcc -Wall clidar.c -o clidar
 //ctrl / pour dé/commenter
+#define KRED  "\x1B[31m"
+#define KGRN   "\x1B[32m"
+#define KRESET "\x1B[0m"
+#define KYEL   "\x1B[33m"
 
 #define SYNC_BYTE 0xA5
 #define SYNC_BYTE2 0x5A
@@ -21,11 +25,12 @@
 #define MOTOR_SPEED_CTRL 0xA8
 #define SET_PWM_BYTE 0xF0 //register related to the 
 #define STOP_BYTE 0x25
-#define RESET_BYTE 0x40
 #define INFO_LEN 20
+#define EXPRESS_SCAN_LEN 84
 #define HEALTH_LEN 3
 #define RESET 0x40
 #define SCAN_BYTE 0x20
+#define EXPRESS_SCAN 0x82
 
 struct lidardata{
 	float angle;
@@ -59,11 +64,11 @@ float  _process_scan(uint8_t *raw){
 	uint8_t quality = raw[0] >> 2 ;
 	
 	if (new_scan == invert_new_scan){
-		perror(" New flag mismatch ");
+		printf(KYEL" New flag mismatch \n"KRESET);
 	}
 	uint8_t check_bit = raw[1] & 0b1;
 	if (check_bit != 1){
-		perror(" check_bit not equal to 1 ");
+		printf(KYEL" check_bit not equal to 1 \n"KRESET);
 	}
 	float angle = ((raw[1] >> 1) + (raw[2] << 7)) / 64. ;
 	float distance = (raw[3] + (raw[4] <<8)) / 4. ;
@@ -73,82 +78,42 @@ float  _process_scan(uint8_t *raw){
 	return *data;
 }
 
-int LidarConnect(char pathlidar[13], struct lidar *self){ 
+int LidarConnect (char pathlidar[], struct lidar *self) {
+	/*Function to set the uart communication
+	//Also try with those parameters for the ildar setting 
+	*/
 
-	(*self).fd = 3;
-	printf("LidarConnect pathlidar : %s \n", pathlidar);
-	printf("LidarConnect fd : %d \n", (*self).fd);
+	struct termios options;
+
+	(*self).fd = open(pathlidar, O_RDWR | O_NOCTTY | O_SYNC);
+	if((*self).fd < 0){
+		perror("Error Open UART bus");
+		return -1;
+	}
+	printf("Uart open\n");
 	
+    if(tcgetattr((*self).fd, &options) < 0){
+  		printf("Err tcgetattr\n");
+  		close((*self).fd);
+ 	}
+
+    cfsetospeed(&options, B460800);
+    cfsetispeed(&options, B460800);
+    options.c_cflag = (options.c_cflag & ~CSIZE) | CS8;
+    options.c_lflag = 0;
+    options.c_oflag = 0;
+    options.c_cc[VMIN] = 0; 
+	options.c_cc[VTIME] = 10; // 1s timeout
+    if(tcsetattr((*self).fd, TCSANOW, &options) < 0 ){
+		perror("Setting serial parameters'Failed to connect to the sensor \n");
+		close((*self).fd);
+		return -1;
+	}
+	printf("serial set\n");
+
 	return 0;
+
 }
-
-// int LidarConnect (char pathlidar[], struct lidar *self) {
-// 	/*Function to set the uart communication
-// 	//Also try with those parameters for the ildar setting 
-
-// 	(*self).fd = open(port, O_RDWR | O_NOCTTY | O_SYNC);
-// 	if((*self).fd < 0){
-// 		perror("Error Open UART bus");
-// 		return -1;
-// 	}
-// 	printf("Uart open\n");
-	
-//     struct termios options;
-
-//     if(tcgetattr((*self).fd, &options) < 0){
-//   		printf("Err tcgetattr\n");
-//   		close((*self).fd);
-//  	}
-
-//     cfsetospeed(&options, B115200);
-//     cfsetispeed(&options, B115200);
-//     options.c_cflag = (options.c_cflag & ~CSIZE) | CS8;
-//     options.c_lflag = 0;
-//     options.c_oflag = 0;
-//     options.c_cc[VMIN] = 0; 
-// 	options.c_cc[VTIME] = 10; // 1s timeout
-//     if(tcsetattr((*self).fd, TCSANOW, &options) < 0 ){
-// 		perror("Setting serial parameters'Failed to connect to the sensor \n");
-// 		close((*self).fd);
-// 		return -1;
-// 	}
-// 	printf("serial set\n");
-
-// 	*/
-    
-// 	struct termios options;
-
-//     (*self).fd = open(pathlidar, O_RDWR );
-// 	if((*self).fd < 0){
-// 		perror("Error Open UART bus");
-// 		return -1;
-// 	}
-// 	printf("Uart open\n");
-
-//     //PARITY_NONE, STOPBITS_ONE
-
-//     if(tcgetattr((*self).fd, &options) < 0){
-//   		printf("Err tcgetattr\n");
-//   		close((*self).fd);
-//  	}
-
-// 	options.c_cflag = B460800 | CS8 | CREAD | CLOCAL; //baudrade, data size
-// 	options.c_iflag = 0;
-// 	options.c_oflag = 0;
-// 	options.c_lflag = 0;
-
-// 	//apply the settings
-// 	tcflush((*self).fd, TCIFLUSH);
-// 	if(tcsetattr((*self).fd, TCSANOW, &options) < 0 ){
-// 		perror("Setting serial parameters'Failed to connect to the sensor \n");
-// 		close((*self).fd);
-// 		return -1;
-// 	}
-// 	printf("serial set\n");
-
-// 	return 0;
-
-// }
 
 void _read_descriptor(uint8_t *raw_data){
 	/*
@@ -184,7 +149,7 @@ void _read_raw(int fd, uint8_t *value, int lendata){
 	uint8_t len = 0;
 	uint8_t data[32] ={0};
 	
-	while(len < 4){ //need to had a watchdog on this measurement
+	while(len < 5){ //need to had a watchdog on this measurement
 		len = read(fd, data, lendata );
 	}
 	for(int i =0; i<= lendata; i++){
@@ -192,22 +157,6 @@ void _read_raw(int fd, uint8_t *value, int lendata){
     }
 	
 }
-
-// int _send_payload_cmd(int fd, int cmd, uint8_t *payload){
-// 	/*
-// 	Function that add the payload value to the data before send to lidar 
-// 	*/
-// 	uint8_t size = 0x02 ;
-// 	uint8_t req[6] = {SYNC_BYTE, cmd, size, *payload} ;
-// 	uint8_t checksum;
-// 	checksum = 193;
-
-// 	req[5]= checksum ;
-	
-// 	_send_cmd(fd, req);
-
-// 	return 0;
-// } 
 
 int LidarDeconnect (int fd){
 	/*
@@ -277,30 +226,26 @@ int stop_motor(uint8_t fd ){
 
 int iter_measurement (struct lidar self){
 	
-	uint8_t valeurs[5], descriptor[7];
+	uint8_t valeurs[5];
 
-	_send_cmd(self.fd, SCAN_BYTE);
-	if (read(self.fd, descriptor, 7) != 7 || descriptor[0] != 0xA5 || descriptor[1] != 0x5A) {
-        printf("Failed to receive valid response descriptor[cite: 183].\n");
-        return -1;
-    }
+	read(self.fd, valeurs, 5) ;
 
-	if(read(self.fd, valeurs, 5) == 5){
-
-	float angle = (((uint16_t)valeurs[2] << 7) | (valeurs[1] >> 1)) / 64.0f; // [cite: 413]
-	float dist = (((uint16_t)valeurs[4] << 8) | valeurs[3]) / 4.0f;          // [cite: 414]
-	printf("Angle: %.2f deg, Dist: %.2f mm\n", angle, dist);
-	}else{
-		printf("Invalid packet detected, skipping...\n");
-		
+	printf( "valeurs:" );
+	for (int i =0; i<5; i++){
+		printf(" %x", valeurs[i]);
 	}
+	printf("\n");
 
-	// _read_descriptor(valeurs);
-	// *valeurs =_process_scan(valeurs);
+	// float angle = (((uint16_t)valeurs[2] << 7) | (valeurs[1] >> 1)) / 64.0f;
+	// float dist = (((uint16_t)valeurs[4] << 8) | valeurs[3]) / 4.0f;          
+	// printf("Angle: %.2f deg, Dist: %.2f mm\n", angle, dist);
 
-	// *angle = valeurs[0]; 
-	// *distance = valeurs[1];
-	// *quality = valeurs[2];
+	// *data = _process_scan(valeurs);
+	// printf("process : Angle: %.2f deg, Dist: %.2f mm\n", data[0], data[1]);
+
+	// if(sizeof(valeurs) != 5 ){
+	// 	printf(KRED"Invalid packet detected, skipping...\n" KRESET);
+	// }
 
 	return 0;
 }
@@ -308,7 +253,7 @@ int iter_measurement (struct lidar self){
 void reset(uint8_t fd){
 
 	_send_cmd(fd, RESET);
-
+	usleep(700 *1000);
 }
 
 uint8_t gethealth(struct lidar self){
@@ -326,7 +271,9 @@ uint8_t gethealth(struct lidar self){
 	printf("Gethealth\n");
 
 	_send_cmd(self.fd, GET_HEALTH_BYTE);
-	
+	if(sizeof(raw) < DESCRIPTOR_LEN){
+		perror("Error with the lens of the gethealth file descriptor\n");
+	}
 	_read_raw(self.fd, raw, HEALTH_LEN);
 
 	printf("health statue : %d\n", raw[0]);
@@ -351,40 +298,27 @@ void getinfo(struct lidar *self){
 	/*
 		Fonction pour recuperer les infos du Lidar (Model, Hardaware, Firmware, Serial Number)
 	Try this way, chak the file descriptor and after read the data of interrest
-
-	uint8_t desc[7], info[20];
-    if (read(fd, desc, 7) == 7 && desc[0] == 0xA5) {
-        read(fd, info, 20);
-        // C1 MajorModel is 4 
-        printf("Model ID: %d, Firmware: %d.%d\n", info[0], info[2], info[1]);
-        printf("Serial: ");
-        for(int i=0; i<16; i++) printf("%02X", info[4+i]);
-        printf("\n");
-    }
-
 	*/
+
 	printf("Get Infos \n");
 
 	uint8_t raw[20];
-	char temp[255];
 	
 	_send_cmd((*self).fd, GET_INFO_BYTE);
+	_read_raw((*self).fd, raw, DESCRIPTOR_LEN);
+	if(sizeof(raw) < DESCRIPTOR_LEN){
+		perror("Error with the lens of the getinfo file descriptor\n");
+	}
 	_read_raw((*self).fd, raw, INFO_LEN);
 	
-	for(int i =0; i < sizeof(raw); i++){
-		printf(" raw %d : %x %d \n", i, raw[i], raw[i] );
+	printf(" - model : %x \n", raw[0]>>3);
+	printf(" - firmware : %x.%x \n", raw[2], raw[1]);
+	printf(" - hardware : %x \n", raw[3]);
+	printf(" - serial_number : %x", raw[4]);
+	for(int i =4; i < sizeof(raw); i++){
+		printf("%x",raw[i]);
 	}
-
-	_read_descriptor(raw);
-
-	sprintf(temp, "%d",raw[0]);
-	strcpy((*self).info.model, temp);
-	sprintf(temp, "%d",raw[2]+raw[1]);
-	strcpy((*self).info.firmware, temp);
-	sprintf(temp, "%d",raw[3]);
-	strcpy((*self).info.hardware, temp);
-	sprintf(temp, "%d",raw[4]);
-	strcpy((*self).info.serial_number, temp);
+	printf("\n");
 	
 }
 
@@ -395,35 +329,86 @@ void  stop(int fd){
 	
 }
 
+void startreadmesurement(int fd){
+
+	uint8_t descriptor[7];
+
+	_send_cmd(fd, SCAN_BYTE);
+
+	read(fd, descriptor, DESCRIPTOR_LEN );
+	
+
+	if(descriptor[0]== 0xA5 && descriptor[1]== 0x5A ){
+		printf("Start SCAN Measurement\n");
+	}
+	else{
+		printf(KRED"SCAN didn't start\n"KRESET);
+		// reset(fd);
+	}
+
+	printf("descriptor : ");
+	for(int i =0; i<7;i++){
+			printf(" %x", descriptor[i]);
+	}
+	printf("\n");
+
+}
+
+void express_scan(int fd){
+
+	uint8_t request[8], response[84];
+
+	request[0] = 0x82;
+	request[1] = 0x82;
+	for(int i = 2; i<7;i++){
+		request[i] = 0x00;
+	}
+	request[8] = 22;
+
+	_send_cmd(fd, *request);
+
+	read(fd, response, EXPRESS_SCAN_LEN );
+	
+
+	for(int i = 0; i<85;i++ ){
+
+		printf("value %d response : %d %x \n", i,response[i], response[i] );
+	}
+
+
+}
+
+
 int main (void){
 
 	struct lidar new_lidar;
-	int error_code = 0;
-
-	if( LidarConnect("/dev/ttyAMA0", &new_lidar) <0){
-		perror("Lidar connexion failed ");
+	
+	if( LidarConnect("/dev/ttyUSB0", &new_lidar) <0){
+		perror(KYEL"Lidar connexion failed "KRESET);
 	}
 
+	//reset(new_lidar.fd);
 	getinfo(&new_lidar);
 
-	printf("model : %s \n", new_lidar.info.model);
-	printf("firmware : %s\n", new_lidar.info.firmware);
-	printf("hardware : %s\n", new_lidar.info.hardware);
-	printf("serial_number : %s\n", new_lidar.info.serial_number);
+	// reset(new_lidar.fd);
+	
+	// if(gethealth(new_lidar)!=0){
+	// 	printf("Error code : %d \n", error_code);
+	// 	LidarDeconnect(new_lidar.fd);
+	// }
+	
+	// startreadmesurement(new_lidar.fd);
 
-	reset(new_lidar.fd);
-	
-	if(gethealth(new_lidar)!=0){
-		printf("Error code : %d \n", error_code);
-		LidarDeconnect(new_lidar.fd);
-	}
-	
-	for(int i=0; i<10; i++){
-		iter_measurement(new_lidar); 
-	}
+	// for(int i=0; i<20; i++){
+	// 	printf("measurement %d ", i+1);
+	// 	iter_measurement(new_lidar); 
+		
+	// }
+
+	express_scan(new_lidar.fd);
 
 	stop(new_lidar.fd);
-	stop_motor(new_lidar.fd);
+	//stop_motor(new_lidar.fd);
 	LidarDeconnect(new_lidar.fd);
 
     return 0;
