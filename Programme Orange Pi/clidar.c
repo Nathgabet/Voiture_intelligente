@@ -66,21 +66,20 @@ float _process_scan(uint8_t *raw){
 	uint8_t invert_new_scan = (raw[0] >> 1) &  0b00000001;
 	uint8_t quality = raw[0] >> 2 ;
 	uint8_t check_bit = raw[1] & 0b00000001;
-	
-	if (new_scan == invert_new_scan){
+
+	if ((new_scan == invert_new_scan) || (check_bit != 1)){
 		//printf(KYEL" New flag mismatch \n"KRESET);
 		return -1;
 	}
-	if (check_bit != 1){
-		//printf(KYEL" check_bit not equal to 1 \n"KRESET);
-		return -1;
+	else{
+		float angle = ((raw[1] >> 1) | ((uint16_t)raw[2] << 7)) / 64. ;
+		float distance = ((uint16_t)(raw[4] <<8) | raw[3]) / 4. ;
+		
+		printf(KGRN"angle: %.2f distance: %.2f quality: %d\n"KRESET, angle, distance, quality);
+		fflush(stdout);
 	}
-	float angle = ((raw[1] >> 1) | (raw[2] << 7)) / 64. ;
-	float distance = ((raw[4] <<8) | raw[3]) / 4. ;
-	
-	printf(KGRN"angle: %.2f distance: %.2f quality: %d\n"KRESET, angle, distance, quality);
-	
-	return 0;
+
+	return 0;	
 }
 
 int LidarConnect (char pathlidar[]) {
@@ -274,14 +273,15 @@ void _get_samplerate(uint8_t fd){
 	}
 }
 
-int iter_measurement (struct lidar self){
+int iter_measurement (uint8_t fd){
 	
-	uint8_t valeurs[5];
+	uint8_t valeurs[5], unsync;
 	int errror_count= 0;
 
-	read(self.fd, valeurs, MEASURE_LEN) ;
+	read(fd, valeurs, MEASURE_LEN) ;
 	if(_process_scan(valeurs) <0){
 		errror_count++;
+		read(fd, &unsync,1);
 		return errror_count;
 	}
 
@@ -434,7 +434,7 @@ int main (void){
 
 	gettimeofday(&start_time, NULL);
 	do{
-		error_count +=iter_measurement(new_lidar); 
+		error_count +=iter_measurement(new_lidar.fd); 
 		gettimeofday(&stop_time, NULL);
 		if (error_count_flag ==	error_count){
 			printf("measurement %ld ", i+1);
