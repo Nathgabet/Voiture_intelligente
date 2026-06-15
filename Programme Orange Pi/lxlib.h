@@ -7,7 +7,6 @@ struct pin{
         int gpio;
 };
 
-
 int GpioWrite(struct pin *led, int value);
 int GpioRead(struct pin *bouton);
 int InitGpio();
@@ -15,10 +14,10 @@ int msleep(unsigned int tms);
 int GpioIn(struct pin *bouton);
 int GpioOut(struct pin *bouton);
 
-int reset(int *i2c_bus);
-int config(int *i2c_bus);
-int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
-int verif(int *i2c_bus);
+int MPU605Reset(int i2c_bus);
+int MPU605Config(int i2c_bus);
+int MPU6050Read_raw(int i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
+int MPU6050Verif(int i2c_bus);
 
 #endif
 

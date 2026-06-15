@@ -2,17 +2,15 @@
 #include <stdlib.h> //pour printf
 #include <string.h> //pour les chaine de caractere
 #include <stdint.h>//Permet d'utiliser les variables non signees
-#include <unistd.h>
-#include <fcntl.h>// pour open
-#include <sys/ioctl.h>// pour ioctl
+#include <unistd.h>//permet d'utiliser usleep, close, write..
+#include <fcntl.h>// pour les constentes de open
+#include <sys/ioctl.h>// pour l'i2c
 #include <linux/gpio.h>// pour struct gpiochip
 #include <linux/spi/spidev.h>//permet d'utiliser le bus SPI
 #include <linux/joystick.h>//permet d'utiliser la manette
-#include "lxlib.h"
+#include "../include/lxlib.h"
 
-/*
-Fonction associes au port GPIO
-*/
+/* Fonction associes au port GPIO */
 //Declare un port GPIO comme entree
 int GpioIn(struct pin *bouton){
 
@@ -39,7 +37,6 @@ int GpioIn(struct pin *bouton){
                 return 1;
         }
 }
-
 //Declare un port GPIO comme sortie
 int GpioOut(struct pin *led){
 
@@ -68,7 +65,6 @@ int GpioOut(struct pin *led){
         }
 
 }
-
 //permet de changer l'etat d'une sortie
 int GpioWrite(struct pin *led, int value){
 
@@ -114,22 +110,25 @@ int InitGpio(){
         return fd;
 }
 
-/*
-Fonction Permettant de faire des attentes en ms
-*/
+/* Init Ultra Sound Sense*/
+int IntitUS(struct pin echo, struct pin trig ){
+
+
+
+}
+
+/* Fonction Permettant de faire des attentes en ms */
 int msleep(unsigned int tms) {
   return usleep(tms * 1000);
 }
 
-/*
-Fonction associes à la communication I2C
-*/
+/* Fonction associes à la communication I2C */
 //Permet de reinitialiser le gyroscope
-int reset(int *i2c_bus){
+int MPU605Reset(int i2c_bus){
 
         uint8_t buf[2] = {0x6B, 0x80};
 
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur: Réinitialisation du MPU6050");
                 return -1;
         }
@@ -138,13 +137,13 @@ int reset(int *i2c_bus){
         return 0;
 }
 //Permet de configurer le Gyroscope
-int config(int *i2c_bus){
+int MPU605Config(int i2c_bus){
 
         uint8_t buf[2];
 
         buf[0] = 0x6B;
         buf[1] = 0x00;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Reglage de l'alimentation");
                 return -1;
         }
@@ -153,7 +152,7 @@ int config(int *i2c_bus){
 
         buf[0] = 0x1A;
         buf[1] = 0x05;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Reglage de la synchronisation");
                  return -1;
         }
@@ -162,7 +161,7 @@ int config(int *i2c_bus){
 
         buf[0] = 0x1B;
         buf[1] = 0x08;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Reglage du Gyroscope");
                 return -1;
         }
@@ -171,7 +170,7 @@ int config(int *i2c_bus){
 
         buf[0] = 0x1C;
         buf[1] = 0x00;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Reglage de l'accélérometre");
                 return -1;
         }
@@ -180,7 +179,7 @@ int config(int *i2c_bus){
 
         buf[0] = 0x19;
         buf[1] = 0x07;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Reglage du sample rate diviser");
                 return -1;
         }
@@ -189,7 +188,7 @@ int config(int *i2c_bus){
 
         buf[0] = 0x38;
         buf[1] = 0x01;
-        if(write(*i2c_bus, buf, 2) != 2){
+        if(write(i2c_bus, buf, 2) != 2){
                 perror("Erreur : Activation des data");
                 return -1;
         }
@@ -199,17 +198,17 @@ int config(int *i2c_bus){
         return 0;
 }
 //Permet de lire les valeurs du gyroscope
-int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
+int MPU6050Read_raw(int i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
 
         uint8_t data, buffer[6];
 
         data = 0x3B;
-        if(write(*i2c_bus,&data, 1) != 1){
+        if(write(i2c_bus,&data, 1) != 1){
                 perror("Error write for accel reading\n");
                 return -1;
         }
         msleep(1);
-        if(read(*i2c_bus, buffer, 6) !=6){
+        if(read(i2c_bus, buffer, 6) !=6){
                 perror("Error to read accel\n");
                 return -1;
         }
@@ -219,12 +218,12 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
         }
 
         data = 0x41;
-        if(write(*i2c_bus,&data, 1) != 1){
+        if(write(i2c_bus,&data, 1) != 1){
                 perror("Error write for accel reading\n");
                 return -1;
         }
         msleep(1);
-        if(read(*i2c_bus, buffer, 2) !=2){
+        if(read(i2c_bus, buffer, 2) !=2){
                 perror("Error to read accel\n");
                 return -1;
         }
@@ -232,12 +231,12 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
         *temp = buffer[0] << 8 | buffer[1];
 
         data = 0x47;
-        if(write(*i2c_bus,&data, 1) != 1){
+        if(write(i2c_bus,&data, 1) != 1){
                 perror("Error write for accel reading\n");
                 return -1;
         }
         msleep(1);
-        if(read(*i2c_bus, buffer, 2) !=2){
+        if(read(i2c_bus, buffer, 2) !=2){
                 perror("Error to read accel\n");
                 return -1;
         }
@@ -247,17 +246,17 @@ int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp){
         return 1;
 }
 //Permet de verifier le bon fonctionnement du gyroscope
-int verif(int *i2c_bus){
+int MPU6050Verif(int i2c_bus){
 
         uint8_t buf;
 
         buf =0x75;
-        if(write(*i2c_bus, &buf,1) !=1){
+        if(write(i2c_bus, &buf,1) !=1){
                 perror("Error writing on the bus");
                 return -1;
         }
 
-        if(read(*i2c_bus,&buf,1)!=1){
+        if(read(i2c_bus,&buf,1)!=1){
                 perror("Error reading on the bus");
                 return -1;
         }
@@ -271,9 +270,7 @@ int verif(int *i2c_bus){
 
 }
 
-/*
-Fonctions associe au Bus SPI
-*/
+/* Fonctions associe au Bus SPI */
 //Permet le tranfert de donnees
 int spi_transfer(int fd, uint8_t *data, int lenght){
 
@@ -526,11 +523,7 @@ int nrf24_Receive(int fd, uint8_t *data){
         return 1;
 }
 
-/*
-
-Fonctions associes a la manette
-
-*/
+/* Fonctions associes a la manette */
 //Fonction permettant de lire les evenements
 int read_event(int fd, struct js_event *event){
 
@@ -540,42 +533,5 @@ int read_event(int fd, struct js_event *event){
 
         if (bytes == sizeof(*event))
                 return 0;
-
-
         return -1;
-}
-//Permet de connetre le nombre axes
-size_t get_axis_count(int fd){
-
-        uint8_t axes;
-
-        if (ioctl(fd, JSIOCGAXES, &axes) == -1)
-                return 0;
-
-        return axes;
-}
-//Permet de connetre le nombre de boutons
-size_t get_button_count(int fd){
-
-        uint8_t  buttons;
-
-        if (ioctl(fd, JSIOCGBUTTONS, &buttons) < 0)
-                return 0;
-
-        return buttons;
-}
-//Permet de connetre le position des joysticks
-size_t get_axis_state(struct js_event *event, struct axis_state axes[3]){
-
-        size_t axis = event->number / 2;
-
-        if (axis < 3){
-
-                if (event->number % 2 == 0)
-                        axes[axis].x = event->value;
-                else
-                        axes[axis].y = event->value;
-        }
-
-    return axis;
 }
