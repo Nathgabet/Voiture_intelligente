@@ -1,52 +1,55 @@
-#--------------------------------------------------------------lib used--------------------------------------------------------------
-
-import matplotlib.pyplot as plt #lib used to make and save the graph. To installed it just type in a cmd "pip install matplotlib" version used 3.9.1
-from matplotlib import cm
-from matplotlib.colors import LightSource
+import matplotlib.pyplot as plt
 import numpy as np
-#--------------------------------------------------------------Main--------------------------------------------------------------
+from matplotlib.animation import FuncAnimation
+import random
 
-def plot_polar_point(angle_deg, distance):
-    # 1. Convert angle from degrees to radians
-    angle_rad = np.radians(angle_deg)
-    
-    # 2. Calculate Cartesian coordinates
-    x = distance * np.cos(angle_rad)
-    y = distance * np.sin(angle_rad)
-    
-    # 3. Plotting
-    fig, ax = plt.subplots(figsize=(6, 6))
-    
-    # Plot the point
-    ax.plot(x, y, 'ro', label=f'Point ({angle_deg}°, {distance})')
-    
-    # Draw a line from the origin to the point for clarity
-    ax.plot([0, x], [0, y], 'k--', alpha=0.5)
-    
-    # Set fixed limits so the origin (0,0) is visible
-    limit = distance + 1
-    ax.set_xlim(-limit, limit)
-    ax.set_ylim(-limit, limit)
-    
-    ax.axhline(0, color='black', lw=1) # X-axis
-    ax.axvline(0, color='black', lw=1) # Y-axis
-    ax.grid(True)
-    ax.legend()
-    ax.set_aspect('equal') # Keep the circle circular
-    
-    plt.title("Polar to Cartesian Projection")
-    plt.show()
+# 1. Setup the figure with a polar projection
+fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 
-def plot_anotherway_polar(angle_deg, distance):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='polar')
+# Initialize empty lists for both data streams
+theta_data = []
+r1_data = []
+r2_data = []
 
-    # In polar projection, plot(theta, r)
-    ax.plot(np.radians(angle_deg), distance, 'ro') 
-    plt.show()
+# 2. Create two distinct line objects
+line1, = ax.plot([], [], label='Stream A', color='cyan', linewidth=2)
+line2, = ax.plot([], [], label='Stream B', color='magenta', linewidth=2, linestyle='--')
 
-#--------------------------------------------------------------__name__ guard--------------------------------------------------------------
-if __name__ == "__main__":
-    None
-    # Example usage: 45 degrees at a distance of 5
-    plot_polar_point(45, 5)
+# Configure polar plot appearance
+ax.set_ylim(0, 100)  # Limits for the radius (r)
+ax.legend(loc='upper right')
+
+# 3. Update function called at each interval
+def update(frame):
+    # Convert frame index to radians (0 to 2*pi)
+    # This keeps theta wrapping smoothly around the circle
+    current_theta = (frame % 360) * (np.pi / 180)
+    
+    # Simulate receiving new random data for both streams
+    # Random walk logic used here for smoother, more organic visual streaming
+    new_r1 = max(0, min(100, (r1_data[-1] + random.randint(-10, 10)) if r1_data else 50))
+    new_r2 = max(0, min(100, (r2_data[-1] + random.randint(-12, 12)) if r2_data else 50))
+    
+    theta_data.append(current_theta)
+    r1_data.append(new_r1)
+    r2_data.append(new_r2)
+    
+    # Keep only the last 90 points so the trailing tails clear out gracefully
+    max_points = 360
+    if len(theta_data) > max_points:
+        theta_data.pop(0)
+        r1_data.pop(0)
+        r2_data.pop(0)
+        
+    # Update data for both lines
+    line1.set_data(theta_data, r1_data)
+    line2.set_data(theta_data, r2_data)
+    
+    # Return both line elements to be redrawn
+    return line1, line2
+
+# 4. Run the animation
+# blit=True optimizes rendering by only updating the lines
+ani = FuncAnimation(fig, update, frames=np.arange(0, 10000), blit=True, interval=30)
+
+plt.show()
