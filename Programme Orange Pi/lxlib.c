@@ -1,10 +1,14 @@
 #include <stdio.h> //de base
 #include <stdlib.h> //pour printf
+#include <stdarg.h>// pour avoir des fonctions avec un mb d'arguments variables
 #include <string.h> //pour les chaine de caractere
 #include <stdint.h>//Permet d'utiliser les variables non signees
 #include <unistd.h>//permet d'utiliser usleep, close, write..
 #include <fcntl.h>// pour les constentes de open
 #include <sys/ioctl.h>// pour l'i2c
+#include <poll.h>//pour utilise poll pour faire un timer
+#include <pthread.h>//pour les fonctions liers au threads
+#include <linux/i2c-dev.h>//pour la comminication I2C
 #include <linux/gpio.h>// pour struct gpiochip
 #include <linux/spi/spidev.h>//permet d'utiliser le bus SPI
 #include <linux/joystick.h>//permet d'utiliser la manette
@@ -12,7 +16,7 @@
 
 /* Fonction associes au port GPIO */
 //Declare un port GPIO comme entree
-int GpioIn(struct pin *bouton){
+int GpioIn(pin *bouton){
 
         struct gpiohandle_request flag;
         int fd;
@@ -38,19 +42,19 @@ int GpioIn(struct pin *bouton){
         }
 }
 //Declare un port GPIO comme sortie
-int GpioOut(struct pin *led){
+int GpioOut(pin *led){
 
         struct gpiohandle_request flag;
-        int fd;
+        int fd = (*led).fd;
 
-        fd = (*led).fd;
-        flag = (*led).handle;
+        memset(&flag, 0, sizeof(flag));
+        // flag = (*led).handle;
 
         flag.flags = GPIOHANDLE_REQUEST_OUTPUT;
-        strcpy(flag.consumer_label, "LED");
-        memset(&flag, 0, sizeof(flag.default_values));
+        strncpy(flag.consumer_label, "OUTPUT", sizeof(flag.consumer_label)-1);
         flag.lines = 1;
         flag.lineoffsets[0] = (*led).gpio;
+        flag.default_values[0] = 0;
 
         if(ioctl(fd, GPIO_GET_LINEHANDLE_IOCTL, &flag) < 0) {
 
@@ -66,21 +70,23 @@ int GpioOut(struct pin *led){
 
 }
 //permet de changer l'etat d'une sortie
-int GpioWrite(struct pin *led, int value){
+int GpioWrite(pin *led, int value){
 
         struct gpiohandle_data data;
-
+        memset(&data, 0, sizeof(data));
+        
         data.values[0] = value;
-
-        if(ioctl((*led).handle.fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
-                perror("Error to setting GPIO");
+        printf("data.values[0] : %d \n", data.values[0]);
+       
+        if(ioctl((*led).fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data) < 0){
+                perror("Error to write on GPIO");
                 return -1;
         }
 
         return 1;
 }
 //Permet de lire l'etat d'une entree
-int GpioRead(struct pin *bouton){
+int GpioRead(pin *bouton){
 
         struct gpiohandle_data data;
 
@@ -90,39 +96,75 @@ int GpioRead(struct pin *bouton){
                 return -1;
          }
         else{
+                printf("Gpioread value : %d \n", data.values[0]);
                 return data.values[0];
         }
 }
 //Initialise les ports GPIO
-int InitGpio(){
-
+int GpioInit(char gpiopath[]){
+        /*on raspberry pi install gpiod then tap 'gpioinfo' */
         int fd;
-
-        fd = open("/dev/gpiochip1", O_RDWR);
-        if(fd <0){
-                perror("Error opening gpiochip1");
+        
+        if((fd = open(gpiopath, O_RDWR)) <0){
+                perror("Error opening gpiochip0");
                 return -1;
         }
         else{
                 printf("gpiochip1 Open\n");
         }
-
+        
         return fd;
 }
-
-/* Init Ultra Sound Sense*/
-int IntitUS(struct pin echo, struct pin trig ){
-
-
-
+//Function to toggle a gpio output
+void GpioToggle(pin GpioPin){
+        GpioWrite(&GpioPin, LOW);
+        usleep(5);
+        GpioWrite(&GpioPin, HIGH);
+        usleep(5);
+        GpioWrite(&GpioPin, LOW);
 }
+//Function to measure distance with the ultra sound sensor
+long USMeasure( pin trig,  pin echo){
+        struct pollfd pollstruct;
+        struct timeval start, stop;
+        int poll_res;
 
+        pollstruct.fd = trig.fd;
+        pollstruct.events = POLLIN;
+
+        GpioToggle(trig);
+        gettimeofday(&start, NULL);
+        do{
+                poll_res = poll(&pollstruct, 1, TIMEOUTPOLL);
+                gettimeofday(&stop, NULL);
+                if (poll_res <= 0) {
+                        return -1;
+                }
+        }while(GpioRead(&echo)!=HIGH && poll_res>0);
+
+        return ((stop.tv_sec - start.tv_sec) + (stop.tv_usec - start.tv_usec)*0.017);; 
+}
+/* Init Ultra Sound Sense*/
+int IntitUS( pin echo,  pin trig ){
+
+        if (GpioIn(&echo) <0){
+                printf("Error setup Ultra Sound\n");
+                return -1;
+        }
+        if (GpioOut(&trig)<0){
+                printf("Error setup Ultra Sound\n");
+                return -1;
+        }
+        printf("Manage to setup Ultra Sound Gpios\n");
+        return 0;
+}
 /* Fonction Permettant de faire des attentes en ms */
 int msleep(unsigned int tms) {
   return usleep(tms * 1000);
 }
+/* Fonction and variable associes à la communication I2C */
 
-/* Fonction associes à la communication I2C */
+gyro global_MPUgyroscope;
 //Permet de reinitialiser le gyroscope
 int MPU605Reset(int i2c_bus){
 
@@ -135,6 +177,30 @@ int MPU605Reset(int i2c_bus){
         msleep(200);
         printf("Réinitialisation du MPU6050\n" );
         return 0;
+}
+//Permet de verifier le bon fonctionnement du gyroscope
+int MPU6050Verif(int i2c_bus){
+
+        uint8_t buf;
+
+        buf =0x75;
+        if(write(i2c_bus, &buf,1) !=1){
+                perror("Error writing on the bus");
+                return -1;
+        }
+
+        if(read(i2c_bus,&buf,1)!=1){
+                perror("Error reading on the bus");
+                return -1;
+        }
+	msleep(1);
+        if(buf != 104){
+                perror("Erreur de lecture/ecriture de registre\n");
+                return -1;
+        }
+        printf("Lecture/ecriture validé\n");
+        return 1;
+
 }
 //Permet de configurer le Gyroscope
 int MPU605Config(int i2c_bus){
@@ -245,29 +311,59 @@ int MPU6050Read_raw(int i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp)
 
         return 1;
 }
-//Permet de verifier le bon fonctionnement du gyroscope
-int MPU6050Verif(int i2c_bus){
+//Permet de sortir les valeurs de en float
+void *MPU6050Read(void *arg){
+        
+        free(arg) ; 
+        int16_t accel[3]= {10}, gyro, temp;
+        
+        while (1)
+        {
+                        
+        MPU6050Read_raw( global_MPUgyroscope.fd,  accel,  &gyro,  &temp);
 
-        uint8_t buf;
-
-        buf =0x75;
-        if(write(i2c_bus, &buf,1) !=1){
-                perror("Error writing on the bus");
+        global_MPUgyroscope.temp = (((float)temp) / 340.0) + 36.53 ; //temp
+        global_MPUgyroscope.accelX = ((float)accel[0])/16875.0; //X
+        global_MPUgyroscope.accelY = ((float)accel[1])/17940.48; //Y
+        global_MPUgyroscope.accelZ = ((float)accel[2])/17940.48; //Z
+        global_MPUgyroscope.gyro = ((float)gyro)/65.5;  
+        }
+}
+//Permet d'initiliser le Gyroscope
+int MPU6050Init(){
+        
+        if(ioctl(global_MPUgyroscope.fd, I2C_SLAVE, 0x68) < 0){
+		perror("Error to setting slave adress");
+		close(global_MPUgyroscope.fd);
+		return -1;
+	}
+        if(MPU6050Verif(global_MPUgyroscope.fd)<0){
+                close(global_MPUgyroscope.fd);
                 return -1;
         }
-
-        if(read(i2c_bus,&buf,1)!=1){
-                perror("Error reading on the bus");
+        if(MPU605Reset(global_MPUgyroscope.fd)!=0){
+                perror("Error réinitialisation");
+                close(global_MPUgyroscope.fd);
                 return -1;
         }
-	msleep(1);
-        if(buf != 104){
-                perror("Erreur de lecture/ecriture de registre\n");
+        if(MPU605Config(global_MPUgyroscope.fd)!=0){
+                perror("Error configuration");
+                close(global_MPUgyroscope.fd);
                 return -1;
         }
-        printf("Lecture/ecriture validé\n");
-        return 1;
-
+        if(MPU6050Verif(global_MPUgyroscope.fd)<0){
+                close(global_MPUgyroscope.fd);
+                return -1;
+        }
+        if(pthread_create(&global_MPUgyroscope.handle_thread,NULL,MPU6050Read, NULL)==0){
+                printf("Thread created\n");
+        }
+        else{
+                printf("pthread_create failed\n");
+                return -1;
+        }
+        printf("Gyroscope Init with sucess \n");
+        return 0;
 }
 
 /* Fonctions associe au Bus SPI */
