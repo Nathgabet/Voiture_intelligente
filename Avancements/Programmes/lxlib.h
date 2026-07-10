@@ -1,32 +1,45 @@
 #ifndef LXLIB_H
 #define LXLIB_H
 
-/**
- * struct pin - parametre associé à une pin
- * @fd : file descriptor de l'ouverture de gpiochip1
- * @handle : parametre permettant de configurer la pin
- * @gpio : numero associé à la pin
-*/
-struct pin{
+typedef struct {
         int fd;
         struct gpiohandle_request handle;
         int gpio;
-};
+}pin;
 
-int GpioWrite(struct pin *led, int value);
-int GpioRead(struct pin *bouton);
-int InitGpio();
+typedef struct {
+        pin trig;
+        pin echo;
+        pthread_t thread_handle;
+}ultrasound;
+
+#define TIMEOUTPOLL 5
+int GpioIn( pin *bouton);
+int GpioOut( pin *bouton);
+int GpioWrite(pin *led, int value);
+int GpioRead( pin *bouton);
+int GpioInit();
+void GpioToggle( pin GpioPin);
+void *USMeasure( void *args );
+int IntitUS( pin *echo,  pin *trig );
 int msleep(unsigned int tms);
-int GpioIn(struct pin *bouton);
-int GpioOut(struct pin *bouton);
 
-long distance_raw(struct pin *echo);
+typedef struct{
+        int fd;
+        float temp;
+        float accelX;
+        float accelY;
+        float accelZ;
+        float gyro;
+        pthread_t handle_thread;
+}gyro;
 
-int Initi2c();
-int reset(int *i2c_bus);
-int config(int *i2c_bus);
-int mpu_read_raw(int *i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
-int verif(int *i2c_bus);
+int MPU605Reset(int i2c_bus);
+int MPU6050Verif(int i2c_bus);
+int MPU605Config(int i2c_bus);
+int MPU6050Read_raw(int i2c_bus, int16_t accel[3], int16_t *gyro, int16_t *temp);
+void *MPU6050Read(void *arg);
+int MPU6050Init();
 
 #endif
 
@@ -38,8 +51,8 @@ int verif(int *i2c_bus);
 #define LOW 0
 
 #endif
-#ifndef NRF24CONFIG
-#define NRF24CONFIG
+#ifndef NRF24CONFIG_H
+#define NRF24CONFIG_H
 
 //Liste des registre
 #define CONFIG 0x00
@@ -84,7 +97,6 @@ int verif(int *i2c_bus);
 #define REUSE_RX_PL 0xE3
 #define RF24_NOP 0xFF
 
-//Listre des fonciotns du SPI
 int spi_transfer(int fd, uint8_t *data, int lenght);
 int  nrf24Init(int fd);
 int nrf24Reset(int fd, uint8_t reg);
@@ -95,56 +107,5 @@ int nrf24RxMode(int fd, uint8_t *adress, uint8_t channel);
 uint8_t nrf24Transmit(int fd, uint8_t *data);
 uint8_t IsDataAvailable(int fd, int pinenum);
 int nrf24_Receive(int fd, uint8_t *data);
-
-#endif
-
-#ifndef CONTROLLER
-#define CONTROLLER
-
-/**
- * struct axis_state - regroupe les deux axes de direction
- * @x : valeur sur l'axe x
- * @y : valeur sur l'axe y
-*/
-struct axis_state {
-
-        short x, y;
-
-};
-
-int read_event(int fd, struct js_event *event);
-size_t get_axis_count(int fd);
-size_t get_button_count(int fd);
-size_t get_axis_state(struct js_event *event, struct axis_state axes[3]);
-
-#endif
-
-#ifndef PWM
-#define PWM
-
-// pin PWM naturel
-#define PWM1 267
-#define PWM2 268
-#define PWM3 269
-#define PWM4 270
-
-/**
- * struct pwm - structure contenant les parametres permettant de définir
- * une pin en fonctionnement pwm 
- * @pin : parametres global de fonctionnement d'une pin
- * @thread : adresse du thread associé au pwm
- * @period : durée en micosecond de la periode
- * @duty_cycle : durée de l'état haut du rapport de cycle
-*/
-typedef struct {
-
-	struct pin pin;
-	pthread_t thread;
-	int period;
-	int duty_cycle;
-
-}pwm;
-void *SetPwm(void *arg);
-int InitPwm(pwm *pwm1);
 
 #endif
