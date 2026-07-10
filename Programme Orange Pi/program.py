@@ -32,41 +32,26 @@ ax.set_theta_direction(1)       # Clockwise rotation [cite: 418, 433]
  
 scatter = ax.scatter(12*np.pi, 3000, c='red', s=2, alpha=1)
 
-def update(frame):
-    global angles, distances
-
-    lidar.iter_measurement()
-    angles.append((mainlidar.angle * 3.14) / 180.0)
-    distances.append( mainlidar.distance)
-    # if angles:
-    scatter.set_offsets(np.c_[angles, distances])
-    return (scatter,)
-
 if lidar.LidarInit() != 0:
     print("Error Open Lidar")
-    
-angle_max = 0
+    exit()
 
 time_start = time.time()
 time_stop = time.time()
 
+previous_distance = mainlidar.distance
+
 while((time_stop - time_start)<2):
     
-    lidar.iter_measurement()
-    
-    # print(np.deg2rad(mainlidar.angle) + "\t" + mainlidar.angle)
+    if ((mainlidar.distance + 5) > previous_distance ):
+        angles.append(mainlidar.angle)
+        distances.append( mainlidar.distance)
         
-    angles.append((mainlidar.angle * 3.14) / 180.0)
-    distances.append( mainlidar.distance)
-    
-    angles.append(160)
-    distances.append(1800)
-
-    # ani = FuncAnimation(fig, update, repeat=True,interval=50, blit=True, cache_frame_data=False)
-
+    previous_distance = mainlidar.distance
     time_stop = time.time()
 lidar.stop_everything()
 
 scatter.set_offsets(np.c_[angles, distances])
-plt.show()
+plt.savefig("lidarfig.png")
 
+print(f" number measurement : {len(distances) }")

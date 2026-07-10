@@ -30,38 +30,35 @@ ax.set_title("RPLIDAR C1 Real-Time Scan")
 ax.set_theta_zero_location('E')  # Set 0 degrees to the Top
 ax.set_theta_direction(1)       # Clockwise rotation [cite: 418, 433]
  
-
-line1, = ax.plot([], [], label='lidar', color='cyan', linewidth=2)
-scatter = ax.scatter(12*np.pi, 3000, c='red', s=2, alpha=1)
-
-def update(frame):
-    global angles, distances
-
-    angles.append(mainlidar.angle )
-    distances.append( mainlidar.distance)
-
-    max_points = 360
-    if len(angles) > max_points:
-        angles.pop(0)
-        distances.pop(0)
-        
-    line1.set_data(angles, distances)
-
-    return line1
+ax.set_rmax(3000)
+dots, =ax.plot([], [], label='lidar', color='red', marker='o',markersize =3, linestyle='None')
 
 if lidar.LidarInit() != 0:
     print("Error Open Lidar")
     exit()
- 
 
-time_start = time.time()
-time_stop = time.time()
+previous_distance = mainlidar.distance
+points_to_read =250000
+angles_buf = np.zeros(points_to_read)
+distances_buf = np.zeros(points_to_read)
 
-while((time_stop - time_start)<2):
-        
-    ani = FuncAnimation(fig, update, frames=np.arange(0, 10000), blit=True, interval=30)
+def update(frame):
+    global angles, distances
 
+    for i in  range(points_to_read) :
+        if ((mainlidar.distance + 5) > previous_distance ):
+            angles_buf[i] = (mainlidar.angle)
+            distances_buf[i]= ( mainlidar.distance)
+
+    dots.set_data(angles_buf, distances_buf)
+
+    return dots,
+
+try:
+    # ani = FuncAnimation(fig, update, frames=np.arange(0, 10000), blit=True, interval=30)
+    ani = FuncAnimation(fig, update, blit =True, interval=30, cache_frame_data=False)
     plt.show()
-       
-    time_stop = time.time()
-lidar.stop_everything()
+    
+finally:
+    print("Stoping lidar ...")  
+    lidar.stop_everything()
