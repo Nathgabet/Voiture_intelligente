@@ -41,12 +41,12 @@ float process_scan(uint8_t *raw){
 		
 		temp_angle = ((raw[1] >> 1) | ((uint16_t)raw[2] << 7)) / 64. ;
 		if(temp_angle < 360 && temp_angle > 0){ 
-			global_new_lidar.angle  = temp_angle;
+			global_new_lidar.angle  = (temp_angle * 3.14) / 180.0;
 		}
 		
 		temp_distance = ((uint16_t)(raw[4] <<8) | raw[3]) / 4. ;
 		if(temp_distance < 12000 && temp_distance > 0){ 
-			global_new_lidar.distance  = temp_distance;
+			global_new_lidar.distance  = temp_distance; //in mm 
 		}
 		fflush(stdout);
 		return 0;
@@ -87,7 +87,7 @@ int LidarConnect (char pathlidar[]) {
 	return global_new_lidar.fd;
 }
 
-int _read_descriptor(uint8_t *raw_data){
+int read_descriptor(uint8_t *raw_data){
 	/*
 	Check if it's the right lidar and erase the file descriptor of the response
 	*/
@@ -113,7 +113,7 @@ int _read_descriptor(uint8_t *raw_data){
 	return 1;
 }
 
-void _send_cmd(uint8_t cmd){
+void send_cmd(uint8_t cmd){
 	/*
 	Function to send data to the lidar
 	*/
@@ -122,7 +122,7 @@ void _send_cmd(uint8_t cmd){
 	
 }
 
-uint8_t _read_raw(uint8_t *buffer, int length) {
+uint8_t read_raw(uint8_t *buffer, int length) {
     /*
  		Function to received the raw data of the lidar
  	*/
@@ -156,6 +156,8 @@ int LidarDeconnect (){
 	*/
     close(global_new_lidar.fd);
 	printf("Lidar disconnected \n");
+
+	printf("Thread stopted \n");
     return 0;
 }
 
@@ -182,7 +184,7 @@ int start_motor(){
 	/*
 	Function that start the motor
 	*/
-	if (motor_speed(DEFAULT_MOTOR_PWM) <0){
+	if (motor_speed(330) <0){
 		perror("Motor didn't Start");
 		return -1;
 	}
@@ -207,11 +209,11 @@ void get_samplerate(){
 	int flag;
 	printf("Get samplerate \n");
 
-	_send_cmd(GET_SAMPLERATE);
-	_read_raw(raw, DESCRIPTOR_LEN);
-	_read_descriptor(raw);	
+	send_cmd(GET_SAMPLERATE);
+	read_raw(raw, DESCRIPTOR_LEN);
+	read_descriptor(raw);	
 
-	if((flag =_read_raw(raw, SAMPLERATE_LEN)) == 2 ){
+	if((flag =read_raw(raw, SAMPLERATE_LEN)) == 2 ){
 		printf("Timeout on get_samplerate\n");
 		return;
 	}
@@ -225,11 +227,14 @@ void *loop_measurement(void *arg){
 	
 	free(arg);
 	uint8_t valeurs[5], unsync;
+	printf("Thread created \n");
 
-	read(global_new_lidar.fd,valeurs, MEASURE_LEN) ;
-	if(process_scan(valeurs) <0){
-		global_new_lidar.error_count++;
-		read(global_new_lidar.fd,&unsync,1);
+	while(global_new_lidar.handle_thread != 0){
+		read(global_new_lidar.fd,valeurs, MEASURE_LEN) ;
+		if(process_scan(valeurs) <0){
+			global_new_lidar.error_count++;
+			read(global_new_lidar.fd,&unsync,1);
+		}
 	}
 	pthread_exit(NULL);
 }
@@ -248,14 +253,14 @@ void iter_measurement(){
 void reset(){
 	uint8_t flag[5];
 
-	_send_cmd(RESET);
+	send_cmd(RESET);
 	usleep(1000 *1000);
 	start_motor();
 	read(global_new_lidar.fd,flag, 5);
-	_read_descriptor(flag);
+	read_descriptor(flag);
 }
 
-uint16_t gethealth(){
+int gethealth(){
 	/*Get device health state
 
         Returns
@@ -267,13 +272,13 @@ uint16_t gethealth(){
     */
     uint8_t raw[10], error_code;
 
-	_send_cmd(GET_HEALTH_BYTE);
-	_read_raw(raw, DESCRIPTOR_LEN);
-	_read_descriptor(raw);
+	send_cmd(GET_HEALTH_BYTE);
+	read_raw(raw, DESCRIPTOR_LEN);
+	read_descriptor(raw);
 	
 	error_code = (raw[2] <<8) | raw[1] ;
 
-	if (_read_raw(raw, HEALTH_LEN) > 1){
+	if (read_raw(raw, HEALTH_LEN) > 1){
 		printf( "Timeout on gethealth\n");
 		LidarDeconnect(); 
 		return -1;
@@ -290,8 +295,9 @@ uint16_t gethealth(){
 	}
 	else{
 		printf("Status GOOD\n");
+		return 1;
 	}
-	return 0;
+	return 1;
 }
 
 void getinfo(){
@@ -302,11 +308,11 @@ void getinfo(){
 	uint8_t raw[20];
 	printf("Get Infos \n");
 	
-	_send_cmd(GET_INFO_BYTE);
-	_read_raw(raw, DESCRIPTOR_LEN);
-	_read_descriptor(raw);
+	send_cmd(GET_INFO_BYTE);
+	read_raw(raw, DESCRIPTOR_LEN);
+	read_descriptor(raw);
 
-	_read_raw(raw, INFO_LEN);
+	read_raw(raw, INFO_LEN);
 	
 	printf(" - model : %x \n", raw[0]>>3);
 	printf(" - firmware : %x.%x \n", raw[2], raw[1]);
@@ -320,11 +326,19 @@ void getinfo(){
 }
 
 void stop_everything(){
-	_send_cmd(STOP_BYTE);
-	usleep(20*1000);
-	printf("lidar stopted\n");
-	pthread_cancel(global_new_lidar.handle_thread);
+	//kill the thread 
+	if(pthread_cancel(global_new_lidar.handle_thread) != 0){
+		printf(" Failed to kill the thread \n");	
+	}
 	printf("thread quit\n");
+		
+	//stop the lidar
+	send_cmd(STOP_BYTE);
+	usleep(20*1000);
+
+	
+	printf("lidar stopted\n");
+	
 	LidarDeconnect();
 }
 
@@ -333,10 +347,10 @@ int startreadmesurement(){
 	uint8_t descriptor[7];
 
 	start_motor();
-	_send_cmd(SCAN_BYTE);
+	send_cmd(SCAN_BYTE);
 	read(global_new_lidar.fd, descriptor, DESCRIPTOR_LEN );
 	
-	if(_read_descriptor(descriptor) <0){
+	if(read_descriptor(descriptor) <0){
 		printf("SCAN didn't start\n");
 		return -1;		
 	}
@@ -359,7 +373,9 @@ int LidarInit(){
 		return -1;
 	}
 	getinfo(global_new_lidar.fd);
-	gethealth(global_new_lidar.fd);
+	if(	gethealth(global_new_lidar.fd) <0){
+		return -1;
+	}
 	get_samplerate(global_new_lidar.fd);
 	if(startreadmesurement(global_new_lidar.fd)){
 		perror("start measurement");
@@ -382,6 +398,7 @@ void report(double number_iteration, long int timepast){
 
 	printf("valid measurment : %.2f%%\n",  (((float)number_iteration-(float)global_new_lidar.error_count)/(float)number_iteration)*100.0);
 	printf("time of measurment = %ld s\n", timepast);
+	printf("number of measurment = %.0f \n", number_iteration);
 
 }
 
@@ -401,7 +418,7 @@ int main (void){
 		printf("angle %.2lf, distance %.2lf\n", global_new_lidar.angle, global_new_lidar.distance);
 		gettimeofday(&stop_time, NULL);
 		i++;
-	}while(((stop_time.tv_sec - start_time.tv_sec) < 10));
+	}while(((stop_time.tv_sec - start_time.tv_sec) < 0.020));
 	report(i, (stop_time.tv_sec - start_time.tv_sec) );
 	printf("report success\n");
 	
